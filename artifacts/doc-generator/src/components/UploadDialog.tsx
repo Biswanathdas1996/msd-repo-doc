@@ -100,6 +100,9 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
 
+    // Disable timeout — large files can take many minutes on slow connections
+    xhr.timeout = 0;
+
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) {
         const percent = Math.round((e.loaded / e.total) * 100);
@@ -137,6 +140,13 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       xhrRef.current = null;
       setIsUploading(false);
       setUploadProgress(null);
+    });
+
+    xhr.addEventListener("timeout", () => {
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(null);
+      toast({ title: "Upload timed out", description: "The upload took too long. Please try again with a stable connection.", variant: "destructive" });
     });
 
     xhr.open("POST", "/py-api/solutions/upload");

@@ -63,7 +63,7 @@ if exist "%ROOT%\.env" (
 :: ══════════════════════════════════════════════
 
 echo [1/3] Starting Backend - FastAPI (port 5001)...
-start "Backend - FastAPI" cmd /k "cd /d %ROOT% && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload || (echo. & echo [ERROR] Backend failed - see above & pause)"
+start "Backend - FastAPI" cmd /k "cd /d %ROOT% && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload --timeout-keep-alive 300 --h11-max-incomplete-event-size 0 || (echo. & echo [ERROR] Backend failed - see above & pause)"
 
 timeout /t 3 /nobreak >nul
 

@@ -3,6 +3,11 @@ import re
 import json
 import shutil
 import tempfile
+import asyncio
+import hashlib
+import logging
+import time
+import traceback
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,9 +15,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import ClientDisconnect
+
+logger = logging.getLogger("upload")
 
 from backend.models.schemas import (
     Solution, SolutionSummary, SolutionMetadata, SolutionStatus,
@@ -337,33 +345,121 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
     )
 
 
+def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str):
+    """Run heavy extraction + parsing in a background thread so the upload
+    response returns immediately after the file has been streamed to disk."""
+    try:
+        result = extract_solution(tmp_path, SOLUTIONS_DIR)
+
+        saved_zip = None
+        if os.path.exists(tmp_path):
+            saved_zip = os.path.join(UPLOADS_DIR, f"{result['id']}.zip")
+            shutil.copy2(tmp_path, saved_zip)
+            os.unlink(tmp_path)
+
+        sol_data = _build_solution_data(result, solution_name)
+        # _build_solution_data returns a Solution pydantic model; we already
+        # persisted inside it, so nothing else needed.
+        logger.info("Background processing complete for %s", sol_id)
+    except Exception:
+        logger.error("Background processing failed for %s:\n%s", sol_id, traceback.format_exc())
+        # Mark the solution as errored so the UI can show a message
+        if sol_id in solutions_store:
+            solutions_store[sol_id]["status"] = "error"
+            _save_solution_metadata(sol_id, solutions_store[sol_id])
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 @app.post("/solutions/upload")
 async def upload_solution(
+    request: Request,
     file: UploadFile = File(...),
     name: str = Form(default="")
 ):
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
-    CHUNK_SIZE = 8 * 1024 * 1024
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
+    # Use a large chunk to maximise throughput on fast networks
+    CHUNK_SIZE = 32 * 1024 * 1024  # 32 MB
 
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        total_written = 0
-        while True:
-            chunk = await file.read(CHUNK_SIZE)
-            if not chunk:
-                break
-            total_written += len(chunk)
-            if total_written > MAX_UPLOAD_SIZE:
-                tmp.close()
-                os.unlink(tmp.name)
-                raise HTTPException(status_code=400, detail="File too large. Max 10GB.")
-            tmp.write(chunk)
-        tmp_path = tmp.name
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            tmp_path = tmp.name
+            total_written = 0
+            while True:
+                try:
+                    chunk = await file.read(CHUNK_SIZE)
+                except ClientDisconnect:
+                    # Client closed the connection mid-upload
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    raise HTTPException(status_code=499, detail="Client disconnected")
+
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > MAX_UPLOAD_SIZE:
+                    tmp.close()
+                    os.unlink(tmp_path)
+                    raise HTTPException(status_code=400, detail="File too large. Max 10 GB.")
+                tmp.write(chunk)
+
+                # Yield control periodically so the event loop stays responsive
+                # and keep-alive / progress events are not starved.
+                await asyncio.sleep(0)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 
     solution_name = name or file.filename or ""
-    return _process_solution(tmp_path, solution_name)
+    sol_id = hashlib.md5(f"{solution_name}-{time.time()}".encode()).hexdigest()[:8]
+
+    # Register a placeholder so the UI can show "processing" immediately
+    placeholder = {
+        "id": sol_id,
+        "name": solution_name,
+        "uploadedAt": datetime.now(timezone.utc).isoformat(),
+        "status": "processing",
+        "entityCount": 0,
+        "workflowCount": 0,
+        "pluginCount": 0,
+        "formCount": 0,
+        "roleCount": 0,
+        "webResourceCount": 0,
+        "hasDocumentation": False,
+        "metadata": None,
+    }
+    solutions_store[sol_id] = placeholder
+    _save_solution_metadata(sol_id, placeholder)
+
+    # Kick off heavy work in a background thread so we can return the HTTP
+    # response immediately — this prevents proxy / client timeouts.
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(
+        None,  # default ThreadPoolExecutor
+        _background_process_solution,
+        tmp_path,
+        solution_name,
+        sol_id,
+    )
+
+    return SolutionSummary(
+        id=sol_id,
+        name=solution_name,
+        uploadedAt=placeholder["uploadedAt"],
+        entityCount=0,
+        workflowCount=0,
+        pluginCount=0,
+        hasDocumentation=False,
+        status=SolutionStatus.processing,
+    )
 
 
 @app.post("/solutions/import-github")
@@ -674,4 +770,10 @@ def download_docs(sol_id: str, fmt: str):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PYTHON_API_PORT", "5001"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        timeout_keep_alive=300,        # keep connections alive for slow uploads
+        h11_max_incomplete_event_size=0, # no limit on header/body buffering
+    )

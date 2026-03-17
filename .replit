@@ -43,7 +43,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd /home/runner/workspace && uv run uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload"
+args = "cd /home/runner/workspace && uv run uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload --timeout-keep-alive 300 --h11-max-incomplete-event-size 0"
 waitForPort = 5001
 
 [[workflows.workflow]]
