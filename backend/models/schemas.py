@@ -43,6 +43,20 @@ class Plugin(BaseModel):
     description: Optional[str] = None
 
 
+class Role(BaseModel):
+    name: str
+    privileges: list[str] = []
+    description: Optional[str] = None
+
+
+class WebResource(BaseModel):
+    name: str
+    type: str = "unknown"
+    displayName: Optional[str] = None
+    description: Optional[str] = None
+    relatedEntity: Optional[str] = None
+
+
 class KnowledgeGraphEntity(BaseModel):
     fields: list[str] = []
     forms: list[str] = []
@@ -64,6 +78,18 @@ class KnowledgeGraphPlugin(BaseModel):
     stage: Optional[str] = None
 
 
+class KnowledgeGraphRole(BaseModel):
+    privileges: list[str] = []
+    relatedEntities: list[str] = []
+    description: Optional[str] = None
+
+
+class KnowledgeGraphWebResource(BaseModel):
+    type: str = "unknown"
+    relatedEntity: Optional[str] = None
+    description: Optional[str] = None
+
+
 class Relationship(BaseModel):
     source: str
     target: str
@@ -74,6 +100,8 @@ class KnowledgeGraph(BaseModel):
     entities: dict[str, KnowledgeGraphEntity] = {}
     workflows: dict[str, KnowledgeGraphWorkflow] = {}
     plugins: dict[str, KnowledgeGraphPlugin] = {}
+    roles: dict[str, KnowledgeGraphRole] = {}
+    webResources: dict[str, KnowledgeGraphWebResource] = {}
     relationships: list[Relationship] = []
 
 

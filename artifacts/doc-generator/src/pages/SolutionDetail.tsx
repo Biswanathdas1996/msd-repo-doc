@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRoute, Link } from "wouter";
 import { 
   useSolutionDetails, 
@@ -17,10 +17,30 @@ import { format } from "date-fns";
 import { 
   ArrowLeft, Database, Zap, Settings, Share2, FileText, 
   CheckCircle2, AlertTriangle, Loader2, Sparkles, RefreshCcw, FileSearch,
-  Download
+  Download, Play, CheckCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+
+// All 15 CRM documentation sections
+const ALL_DOC_SECTIONS = [
+  { key: "executive_summary", label: "Executive Summary", order: 1, group: "Strategic" },
+  { key: "business_requirements", label: "Business Requirements (BRD)", order: 2, group: "Strategic" },
+  { key: "functional_design", label: "Functional Design (FDD)", order: 3, group: "Design" },
+  { key: "technical_design", label: "Technical Design (TDD)", order: 4, group: "Design" },
+  { key: "data_model", label: "Data Model", order: 5, group: "Design" },
+  { key: "integration", label: "Integration", order: 6, group: "Technical" },
+  { key: "customization", label: "Customization", order: 7, group: "Technical" },
+  { key: "security_model", label: "Security Model", order: 8, group: "Technical" },
+  { key: "deployment", label: "Deployment", order: 9, group: "Operations" },
+  { key: "testing", label: "Testing", order: 10, group: "Operations" },
+  { key: "support_operations", label: "Support & Operations", order: 11, group: "Operations" },
+  { key: "user_guide", label: "User Guide", order: 12, group: "End-User" },
+  { key: "solution_inventory", label: "Solution Inventory", order: 13, group: "Reference" },
+  { key: "environment_config", label: "Environment Config", order: 14, group: "Reference" },
+  { key: "change_log", label: "Change Log", order: 15, group: "Reference" },
+];
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: FileSearch },
@@ -47,11 +67,67 @@ export default function SolutionDetail() {
   
   const generateMutation = useGenerateDocumentation();
   const verifyMutation = useVerifyDocumentation();
+  const queryClient = useQueryClient();
 
-  const [selectedSections, setSelectedSections] = useState<string[]>([
-    'overview', 'architecture', 'entities', 'workflows'
-  ]);
+  const [selectedSections, setSelectedSections] = useState<string[]>(
+    ALL_DOC_SECTIONS.map(s => s.key)
+  );
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set());
+  const [generatedSections, setGeneratedSections] = useState<Set<string>>(new Set());
+
+  // Generate a single section via dedicated API
+  const handleGenerateSection = useCallback(async (sectionKey: string) => {
+    setGeneratingSections(prev => new Set(prev).add(sectionKey));
+    try {
+      const res = await fetch(`/py-api/solutions/${id}/generate-section/${sectionKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || "Generation failed");
+      }
+      setGeneratedSections(prev => new Set(prev).add(sectionKey));
+      // Invalidate docs cache to refresh
+      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}/docs`] });
+      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}`] });
+      toast({ title: `Section generated`, description: ALL_DOC_SECTIONS.find(s => s.key === sectionKey)?.label });
+    } catch (err: any) {
+      toast({ title: "Section generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingSections(prev => {
+        const next = new Set(prev);
+        next.delete(sectionKey);
+        return next;
+      });
+    }
+  }, [id, queryClient, toast]);
+
+  // Generate all selected sections one-by-one (sequential per-section API calls)
+  const handleGenerateAllSequential = useCallback(async () => {
+    for (const sectionKey of selectedSections) {
+      if (generatingSections.size > 0) break; // abort if something went wrong
+      await handleGenerateSection(sectionKey);
+    }
+    toast({ title: "All sections generated", description: `${selectedSections.length} sections completed.` });
+  }, [selectedSections, generatingSections, handleGenerateSection, toast]);
+
+  // Bulk generate (existing behavior — single API call)
+  const handleGenerateBulk = () => {
+    generateMutation.mutate({ 
+      id, 
+      data: { sections: selectedSections as any } 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Documentation generated", description: `${selectedSections.length} sections created.` });
+        setActiveTab('docs');
+      },
+      onError: (err) => {
+        toast({ title: "Generation failed", description: err.data?.error || "Unknown error", variant: "destructive" });
+      }
+    });
+  };
 
   const handleDownload = async (format: "docx" | "pdf") => {
     setDownloading(format);
@@ -97,18 +173,7 @@ export default function SolutionDetail() {
   }
 
   const handleGenerate = () => {
-    generateMutation.mutate({ 
-      id, 
-      data: { sections: selectedSections as any } 
-    }, {
-      onSuccess: () => {
-        toast({ title: "Documentation generation started", description: "This might take a few minutes." });
-        setActiveTab('docs');
-      },
-      onError: (err) => {
-        toast({ title: "Generation failed", description: err.data?.error || "Unknown error", variant: "destructive" });
-      }
-    });
+    handleGenerateBulk();
   };
 
   const handleVerify = () => {
@@ -290,51 +355,123 @@ export default function SolutionDetail() {
         );
 
       case 'docs':
+        const sectionGroups = ALL_DOC_SECTIONS.reduce((acc, s) => {
+          if (!acc[s.group]) acc[s.group] = [];
+          acc[s.group].push(s);
+          return acc;
+        }, {} as Record<string, typeof ALL_DOC_SECTIONS>);
+
         return (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[800px] animate-in slide-in-from-bottom-4 duration-500">
             {/* Controls sidebar */}
-            <div className="lg:col-span-3 space-y-6 flex flex-col">
+            <div className="lg:col-span-4 space-y-4 flex flex-col overflow-y-auto pr-1">
               <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  Generator
+                  CRM Documentation Generator
                 </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Select the sections you want the AI to generate based on the knowledge graph.
+                <p className="text-xs text-muted-foreground mb-4">
+                  Select sections to generate. Use <strong>per-section</strong> mode for incremental generation with chunking, or <strong>bulk</strong> to generate all at once.
                 </p>
                 
-                <div className="space-y-2 mb-6">
-                  {['overview', 'architecture', 'entities', 'workflows', 'functional_flow'].map(section => (
-                    <label key={section} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedSections.includes(section)}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedSections([...selectedSections, section]);
-                          else setSelectedSections(selectedSections.filter(s => s !== section));
-                        }}
-                        className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background"
-                      />
-                      <span className="text-sm capitalize">{section.replace('_', ' ')}</span>
-                    </label>
+                <div className="space-y-4 mb-4">
+                  {Object.entries(sectionGroups).map(([groupName, sections]) => (
+                    <div key={groupName}>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{groupName}</div>
+                      <div className="space-y-1">
+                        {sections.map(section => {
+                          const isGenerating = generatingSections.has(section.key);
+                          const isGenerated = generatedSections.has(section.key) || 
+                            (docs?.sections?.some(s => s.slug === section.key));
+
+                          return (
+                            <div key={section.key} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded-lg transition-colors group">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedSections.includes(section.key)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedSections([...selectedSections, section.key]);
+                                  else setSelectedSections(selectedSections.filter(s => s !== section.key));
+                                }}
+                                className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/50 bg-background shrink-0"
+                              />
+                              <span className="text-xs flex-1 truncate" title={section.label}>
+                                <span className="text-muted-foreground mr-1">{section.order}.</span>
+                                {section.label}
+                              </span>
+                              {isGenerated && !isGenerating && (
+                                <CheckCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              )}
+                              <button
+                                onClick={() => handleGenerateSection(section.key)}
+                                disabled={isGenerating || generateMutation.isPending}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-primary/10 text-primary disabled:opacity-30 shrink-0"
+                                title={`Generate "${section.label}" individually`}
+                              >
+                                {isGenerating ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Play className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </div>
 
-                <Button 
-                  onClick={handleGenerate}
-                  disabled={generateMutation.isPending || selectedSections.length === 0}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  {generateMutation.isPending ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
-                  ) : (
-                    'Generate Selected Docs'
-                  )}
-                </Button>
+                <div className="flex items-center gap-2 mb-3">
+                  <button
+                    onClick={() => setSelectedSections(ALL_DOC_SECTIONS.map(s => s.key))}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-muted-foreground text-xs">|</span>
+                  <button
+                    onClick={() => setSelectedSections([])}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Deselect All
+                  </button>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {selectedSections.length}/{ALL_DOC_SECTIONS.length}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Button 
+                    onClick={handleGenerateAllSequential}
+                    disabled={generateMutation.isPending || generatingSections.size > 0 || selectedSections.length === 0}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    size="sm"
+                  >
+                    {generatingSections.size > 0 ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating Section...</>
+                    ) : (
+                      <><Play className="w-4 h-4 mr-2" /> Generate Per-Section (Recommended)</>
+                    )}
+                  </Button>
+                  <Button 
+                    onClick={handleGenerate}
+                    disabled={generateMutation.isPending || generatingSections.size > 0 || selectedSections.length === 0}
+                    variant="outline"
+                    className="w-full"
+                    size="sm"
+                  >
+                    {generateMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating All...</>
+                    ) : (
+                      'Bulk Generate (Single Call)'
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {docs?.verified !== undefined && (
-                <div className="bg-card border border-border rounded-xl p-5 mt-auto">
+                <div className="bg-card border border-border rounded-xl p-5">
                   <h3 className="font-semibold mb-4 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     Verification
@@ -350,6 +487,7 @@ export default function SolutionDetail() {
                     disabled={verifyMutation.isPending || !docs}
                     variant="outline"
                     className="w-full"
+                    size="sm"
                   >
                     {verifyMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Run Verification Analysis'}
                   </Button>
@@ -358,11 +496,11 @@ export default function SolutionDetail() {
             </div>
 
             {/* Viewer area */}
-            <div className="lg:col-span-9 bg-card border border-border rounded-xl overflow-hidden flex flex-col h-full">
+            <div className="lg:col-span-8 bg-card border border-border rounded-xl overflow-hidden flex flex-col h-full">
               <div className="p-4 border-b border-border/50 bg-muted/20 flex justify-between items-center">
                 <h3 className="font-medium text-foreground">Documentation Preview</h3>
                 <div className="flex items-center gap-2">
-                  {docs && <span className="text-xs text-muted-foreground mr-2">Generated {format(new Date(docs.generatedAt), "PP p")}</span>}
+                  {docs && <span className="text-xs text-muted-foreground mr-2">{docs.sections.length} sections • Generated {format(new Date(docs.generatedAt), "PP p")}</span>}
                   {docs && (
                     <>
                       <Button
@@ -390,11 +528,19 @@ export default function SolutionDetail() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-8 relative">
-                {generateMutation.isPending ? (
+                {(generateMutation.isPending || generatingSections.size > 0) ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10">
                     <RefreshCcw className="w-12 h-12 text-primary animate-spin mb-4" />
                     <h3 className="text-xl font-display font-semibold">AI is writing documentation...</h3>
-                    <p className="text-muted-foreground mt-2">Analyzing knowledge graph relationships and generating markdown.</p>
+                    <p className="text-muted-foreground mt-2">
+                      {generatingSections.size > 0 
+                        ? `Generating: ${Array.from(generatingSections).map(k => ALL_DOC_SECTIONS.find(s => s.key === k)?.label).join(', ')}`
+                        : 'Analyzing knowledge graph relationships and generating markdown.'
+                      }
+                    </p>
+                    {generatedSections.size > 0 && (
+                      <p className="text-sm text-emerald-400 mt-2">{generatedSections.size} section(s) completed</p>
+                    )}
                   </div>
                 ) : null}
 
@@ -410,7 +556,7 @@ export default function SolutionDetail() {
                   <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
                     <FileText className="w-16 h-16 mb-4 opacity-20" />
                     <p>No documentation generated yet.</p>
-                    <p className="text-sm mt-1">Use the generator panel to create AI documentation.</p>
+                    <p className="text-sm mt-1">Use the generator panel to create AI documentation section-by-section.</p>
                   </div>
                 )}
               </div>

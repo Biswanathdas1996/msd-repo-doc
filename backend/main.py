@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.schemas import (
     Solution, SolutionSummary, SolutionMetadata, SolutionStatus,
-    KnowledgeGraph, Entity, Workflow, Plugin, FunctionalFlow,
+    KnowledgeGraph, Entity, Workflow, Plugin, Role, WebResource, FunctionalFlow,
     GeneratedDocs, GenerateDocsRequest, VerificationResult,
     GitHubImportRequest
 )
@@ -24,14 +24,15 @@ from backend.services.extractor import extract_solution
 from backend.services.github_downloader import download_github_repo
 from backend.services.xml_parser import (
     parse_solution_xml, parse_entity_file, parse_workflow_file,
-    parse_plugin_file, parse_form_files,
+    parse_plugin_file, parse_form_files, parse_role_files,
+    parse_webresource_files, parse_other_xml_files,
     parse_ax_class_file, parse_ax_table_file, parse_ax_view_file,
-    ax_classes_to_plugins
+    ax_classes_to_plugins, parse_ax_query_file, parse_ax_report_file
 )
 from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
-from backend.services.ai_reasoning import generate_documentation, verify_documentation
+from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS
 from backend.services.doc_exporter import export_to_docx, export_to_pdf
 
 
@@ -116,6 +117,8 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
     workflows: list[Workflow] = []
     plugins: list[Plugin] = []
     forms: list[str] = []
+    roles: list[Role] = []
+    webresources: list[WebResource] = []
     source_info = {}
 
     if is_source_code:
@@ -154,6 +157,24 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
 
         forms = parse_form_files(structure.get("forms", []))
 
+        # --- AX queries → feed related tables as entities ---
+        ax_query_data = []
+        for qf in structure.get("ax_queries", []):
+            q = parse_ax_query_file(qf)
+            ax_query_data.append(q)
+            for table_name in q.get("related_tables", []):
+                if not any(e.name.lower() == table_name.lower() for e in entities):
+                    entities.append(Entity(name=table_name, displayName=f"{table_name} (from query: {q['name']})"))
+
+        # --- AX reports → feed data sources as references ---
+        ax_report_data = []
+        for rf in structure.get("ax_reports", []):
+            r = parse_ax_report_file(rf)
+            ax_report_data.append(r)
+
+        # --- Roles/Security ---
+        roles = parse_role_files(structure.get("roles", []))
+
         if not sol_metadata:
             sol_metadata = {}
         sol_metadata["type"] = "ax_fo"
@@ -161,6 +182,8 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         sol_metadata["ax_class_count"] = len(ax_classes_data)
         sol_metadata["ax_table_count"] = len(structure.get("ax_tables", []))
         sol_metadata["ax_view_count"] = len(structure.get("ax_views", []))
+        sol_metadata["ax_query_count"] = len(ax_query_data)
+        sol_metadata["ax_report_count"] = len(ax_report_data)
     else:
         for ef in structure.get("entities", []):
             entities.extend(parse_entity_file(ef))
@@ -172,8 +195,18 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
             plugins.extend(parse_plugin_file(pf))
 
         forms = parse_form_files(structure.get("forms", []))
+        roles = parse_role_files(structure.get("roles", []))
+        webresources = parse_webresource_files(structure.get("webresources", []))
 
-    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms)
+    # --- Parse unclassified XML (other_xml) through fallback parser ---
+    other_xml_files = structure.get("other_xml", [])
+    if other_xml_files:
+        extra_entities, extra_workflows, extra_plugins = parse_other_xml_files(other_xml_files)
+        entities.extend(extra_entities)
+        workflows.extend(extra_workflows)
+        plugins.extend(extra_plugins)
+
+    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources)
     functional_flows = generate_functional_flows(knowledge_graph)
 
     sol_data = {
@@ -185,14 +218,16 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         "workflowCount": len(workflows),
         "pluginCount": len(plugins),
         "formCount": len(forms),
-        "roleCount": len(structure.get("roles", [])),
-        "webResourceCount": len(structure.get("webresources", [])),
+        "roleCount": len(roles) or len(structure.get("roles", [])),
+        "webResourceCount": len(webresources) or len(structure.get("webresources", [])),
         "hasDocumentation": False,
         "metadata": sol_metadata,
         "entities": [e.model_dump() for e in entities],
         "workflows": [w.model_dump() for w in workflows],
         "plugins": [p.model_dump() for p in plugins],
         "forms": forms,
+        "roles": [r.model_dump() for r in roles],
+        "webresources": [wr.model_dump() for wr in webresources],
         "knowledge_graph": knowledge_graph.model_dump(),
         "functional_flows": [f.model_dump() for f in functional_flows],
         "docs": None,
@@ -324,6 +359,8 @@ def reprocess_solution(sol_id: str):
     entities: list[Entity] = []
     workflows: list[Workflow] = []
     plugins: list[Plugin] = []
+    roles: list[Role] = []
+    webresources: list[WebResource] = []
     forms: list[str] = data.get("forms", [])
 
     if is_source_code:
@@ -338,8 +375,12 @@ def reprocess_solution(sol_id: str):
             workflows.append(Workflow(**wf))
         for pf in data.get("plugins", []):
             plugins.append(Plugin(**pf))
+        for rf in data.get("roles", []):
+            roles.append(Role(**rf))
+        for wr in data.get("webresources", []):
+            webresources.append(WebResource(**wr))
 
-    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms)
+    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources)
     functional_flows = generate_functional_flows(knowledge_graph)
 
     data["entities"] = [e.model_dump() for e in entities]
@@ -402,6 +443,74 @@ def generate_docs(sol_id: str, request: GenerateDocsRequest = None):
     _save_solution_metadata(sol_id, data)
 
     return docs
+
+
+@app.get("/solutions/{sol_id}/doc-sections")
+def list_doc_sections(sol_id: str):
+    """List all available documentation sections with their generation status."""
+    data = _get_solution_or_404(sol_id)
+    existing_docs = data.get("docs")
+    generated_slugs = set()
+    if existing_docs and existing_docs.get("sections"):
+        for sec in existing_docs["sections"]:
+            generated_slugs.add(sec.get("slug", ""))
+
+    result = []
+    for key, config in SECTION_CONFIGS.items():
+        slug = config["title"].lower().replace(" ", "_").replace("/", "").replace("&", "and")
+        result.append({
+            "key": key,
+            "title": config["title"],
+            "order": config.get("order", 99),
+            "generated": slug in generated_slugs or key in generated_slugs,
+        })
+    return sorted(result, key=lambda x: x["order"])
+
+
+@app.post("/solutions/{sol_id}/generate-section/{section_key}")
+def generate_section(sol_id: str, section_key: str):
+    """Generate a single documentation section with chunking support.
+
+    This allows incremental doc generation — one section per API call.
+    The generated section is merged into the existing docs for the solution.
+    """
+    data = _get_solution_or_404(sol_id)
+    kg = KnowledgeGraph(**data.get("knowledge_graph", {}))
+
+    if section_key not in SECTION_CONFIGS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown section: {section_key}. Available: {list(SECTION_CONFIGS.keys())}"
+        )
+
+    section = generate_single_section(sol_id, kg, section_key)
+
+    # Merge into existing docs
+    existing_docs = data.get("docs")
+    if existing_docs:
+        # Replace existing section with same slug, or append
+        new_sections = [
+            s for s in existing_docs.get("sections", [])
+            if s.get("slug") != section.slug
+        ]
+        new_sections.append(section.model_dump())
+        existing_docs["sections"] = new_sections
+        existing_docs["generatedAt"] = datetime.now(timezone.utc).isoformat()
+        existing_docs["verified"] = False
+    else:
+        existing_docs = {
+            "solutionId": sol_id,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "sections": [section.model_dump()],
+            "verified": False,
+        }
+
+    data["docs"] = existing_docs
+    data["hasDocumentation"] = True
+    solutions_store[sol_id] = data
+    _save_solution_metadata(sol_id, data)
+
+    return section
 
 
 @app.get("/solutions/{sol_id}/docs")

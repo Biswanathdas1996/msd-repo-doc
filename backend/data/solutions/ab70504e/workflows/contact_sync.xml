@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Workflow Name="Contact Synchronization" PrimaryEntity="Contact" Trigger="Update">
+  <Steps>
+    <Step Name="Detect field changes"/>
+    <Step Name="Sync to external CRM"/>
+    <Step Name="Update audit log"/>
+    <Step Name="Notify account manager"/>
+  </Steps>
+</Workflow>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Plugin Name="OpportunityScoringPlugin" PrimaryEntity="Opportunity" Message="Create" Stage="Post-operation">
+  <Description>Automatically scores opportunities based on customer history and deal parameters</Description>
+</Plugin>

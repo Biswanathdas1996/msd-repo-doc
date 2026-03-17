@@ -281,7 +281,7 @@ paths:
       operationId: generateDocs
       tags: [documentation]
       summary: Generate AI documentation
-      description: Generate structured documentation using AI reasoning
+      description: Generate structured documentation using AI reasoning (bulk — all selected sections in one call)
       parameters:
         - name: id
           in: path
@@ -302,6 +302,84 @@ paths:
                 $ref: "#/components/schemas/GeneratedDocs"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/doc-sections:
+    get:
+      operationId: listDocSections
+      tags: [documentation]
+      summary: List available documentation sections and their generation status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of documentation sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocSectionInfo"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/generate-section/{sectionKey}:
+    post:
+      operationId: generateSection
+      tags: [documentation]
+      summary: Generate a single documentation section with chunking
+      description: Generate one section at a time. The section is merged into existing docs. Supports chunking for large solutions.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sectionKey
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - executive_summary
+              - business_requirements
+              - functional_design
+              - technical_design
+              - data_model
+              - integration
+              - customization
+              - security_model
+              - deployment
+              - testing
+              - support_operations
+              - user_guide
+              - solution_inventory
+              - environment_config
+              - change_log
+      responses:
+        "200":
+          description: Section generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocSection"
+        "400":
+          description: Unknown section key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Solution not found
           content:
             application/json:
               schema:
@@ -658,8 +736,39 @@ components:
           type: array
           items:
             type: string
-            enum: [overview, features, architecture, entities, workflows, functional_flow, integrations]
-          description: Specific sections to generate (empty for all)
+            enum:
+              - executive_summary
+              - business_requirements
+              - functional_design
+              - technical_design
+              - data_model
+              - integration
+              - customization
+              - security_model
+              - deployment
+              - testing
+              - support_operations
+              - user_guide
+              - solution_inventory
+              - environment_config
+              - change_log
+          description: Specific sections to generate (empty for all 15 sections)
+    DocSectionInfo:
+      type: object
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        order:
+          type: integer
+        generated:
+          type: boolean
+      required:
+        - key
+        - title
+        - order
+        - generated
     GeneratedDocs:
       type: object
       properties:

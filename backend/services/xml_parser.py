@@ -1,6 +1,6 @@
 from lxml import etree
 import os
-from backend.models.schemas import Entity, EntityField, Workflow, Plugin
+from backend.models.schemas import Entity, EntityField, Workflow, Plugin, Role, WebResource
 
 
 def _secure_parser():
@@ -415,3 +415,266 @@ def _get_child_text(element, ns: str, tag_name: str) -> str | None:
         if _clean_tag(ch.tag) == tag_name:
             return ch.text
     return None
+
+
+# ---------------------------------------------------------------------------
+# Role / Security Role parser
+# ---------------------------------------------------------------------------
+
+def parse_role_files(file_paths: list[str]) -> list[Role]:
+    """Parse Dynamics security role / AX security XML files into Role objects."""
+    roles: list[Role] = []
+    for fp in file_paths:
+        try:
+            tree = _safe_parse(fp)
+            root = tree.getroot()
+            ns = _get_namespace(root)
+            root_tag = _clean_tag(root.tag).lower()
+
+            # AX SecurityRole / SecurityDuty / SecurityPrivilege
+            if root_tag in ("axsecurityrole", "axsecurityduty", "axsecurityprivilege"):
+                name_el = root.find(f"{ns}Name") if ns else root.find("Name")
+                name = name_el.text if name_el is not None and name_el.text else os.path.splitext(os.path.basename(fp))[0]
+                desc_el = root.find(f".//{ns}Description" if ns else ".//Description")
+                desc = desc_el.text if desc_el is not None and desc_el.text else None
+
+                privileges = []
+                for priv_el in root.iter():
+                    tag = _clean_tag(priv_el.tag).lower()
+                    if "privilege" in tag or "duty" in tag or "permission" in tag:
+                        p_name = priv_el.find(f"{ns}Name" if ns else "Name")
+                        if p_name is not None and p_name.text:
+                            privileges.append(p_name.text)
+                        elif priv_el.get("Name"):
+                            privileges.append(priv_el.get("Name"))
+
+                roles.append(Role(name=name, privileges=privileges, description=desc))
+                continue
+
+            # CRM-style role XMLs
+            role_elements = _find_all(root, ns, ["Role", "role", "SecurityRole"])
+            if not role_elements:
+                role_elements = [root]
+
+            for role_el in role_elements:
+                name = (role_el.get("Name") or role_el.get("name") or
+                        _get_child_text(role_el, ns, "Name") or
+                        os.path.splitext(os.path.basename(fp))[0])
+                desc = role_el.get("Description") or _get_child_text(role_el, ns, "Description")
+                privileges = []
+                priv_elements = _find_all(role_el, ns, [
+                    "RolePrivilege", "Privilege", "privilege",
+                    "roleprivilege", "RolePrivileges"
+                ])
+                for pe in priv_elements:
+                    pname = pe.get("name") or pe.get("Name") or _get_child_text(pe, ns, "Name") or ""
+                    if pname:
+                        privileges.append(pname)
+
+                roles.append(Role(name=name, privileges=privileges, description=desc))
+
+        except Exception:
+            name = os.path.splitext(os.path.basename(fp))[0]
+            roles.append(Role(name=name))
+    return roles
+
+
+# ---------------------------------------------------------------------------
+# Web Resource parser
+# ---------------------------------------------------------------------------
+
+WEB_RESOURCE_TYPE_MAP = {
+    "1": "HTML", "2": "CSS", "3": "JavaScript",
+    "4": "XML", "5": "PNG", "6": "JPG",
+    "7": "GIF", "8": "Silverlight", "9": "StyleSheet",
+    "10": "ICO", "11": "SVG", "12": "RESX",
+}
+
+
+def parse_webresource_files(file_paths: list[str]) -> list[WebResource]:
+    """Parse Dynamics web resource XML files."""
+    resources: list[WebResource] = []
+    for fp in file_paths:
+        try:
+            tree = _safe_parse(fp)
+            root = tree.getroot()
+            ns = _get_namespace(root)
+
+            wr_elements = _find_all(root, ns, [
+                "WebResource", "webresource", "WebResources"
+            ])
+            if not wr_elements:
+                wr_elements = [root]
+
+            for wr_el in wr_elements:
+                name = (wr_el.get("Name") or wr_el.get("name") or
+                        _get_child_text(wr_el, ns, "Name") or
+                        os.path.splitext(os.path.basename(fp))[0])
+                display = wr_el.get("DisplayName") or _get_child_text(wr_el, ns, "DisplayName")
+                desc = wr_el.get("Description") or _get_child_text(wr_el, ns, "Description")
+                wr_type_code = wr_el.get("WebResourceType") or _get_child_text(wr_el, ns, "WebResourceType") or ""
+                wr_type = WEB_RESOURCE_TYPE_MAP.get(wr_type_code, wr_type_code or "unknown")
+
+                # Try to infer type from file extension in name
+                if wr_type == "unknown" and name:
+                    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+                    ext_map = {"js": "JavaScript", "html": "HTML", "htm": "HTML",
+                               "css": "CSS", "xml": "XML", "png": "PNG",
+                               "jpg": "JPG", "jpeg": "JPG", "gif": "GIF",
+                               "svg": "SVG", "ico": "ICO", "resx": "RESX"}
+                    wr_type = ext_map.get(ext, "unknown")
+
+                # Try to infer related entity from path/name
+                related_entity = None
+                name_parts = name.replace("/", "_").replace("\\", "_").split("_")
+                for part in name_parts:
+                    if part and part[0].isupper() and len(part) > 2:
+                        related_entity = part
+                        break
+
+                resources.append(WebResource(
+                    name=name,
+                    type=wr_type,
+                    displayName=display,
+                    description=desc,
+                    relatedEntity=related_entity
+                ))
+        except Exception:
+            name = os.path.splitext(os.path.basename(fp))[0]
+            resources.append(WebResource(name=name))
+    return resources
+
+
+# ---------------------------------------------------------------------------
+# AX Query parser
+# ---------------------------------------------------------------------------
+
+def parse_ax_query_file(file_path: str) -> dict:
+    """Parse an AX query XML file and return structured info."""
+    result = {"name": "", "type": "query", "data_sources": [], "related_tables": []}
+    try:
+        tree = _safe_parse(file_path)
+        root = tree.getroot()
+        ns = _get_namespace(root)
+
+        name_el = root.find(f"{ns}Name") if ns else root.find("Name")
+        result["name"] = name_el.text if name_el is not None and name_el.text else os.path.splitext(os.path.basename(file_path))[0]
+
+        for ds_el in root.iter():
+            tag = _clean_tag(ds_el.tag)
+            if tag in ("AxQuerySimpleDataSource", "AxQuerySimpleEmbeddedDataSource", "DataSource"):
+                table_el = ds_el.find(f"{ns}Table" if ns else "Table")
+                if table_el is not None and table_el.text:
+                    result["data_sources"].append(table_el.text)
+                    if table_el.text not in result["related_tables"]:
+                        result["related_tables"].append(table_el.text)
+                ds_name_el = ds_el.find(f"{ns}Name" if ns else "Name")
+                if ds_name_el is not None and ds_name_el.text:
+                    if ds_name_el.text not in result["data_sources"]:
+                        result["data_sources"].append(ds_name_el.text)
+    except Exception:
+        result["name"] = os.path.splitext(os.path.basename(file_path))[0]
+    return result
+
+
+# ---------------------------------------------------------------------------
+# AX Report (SSRS) parser
+# ---------------------------------------------------------------------------
+
+def parse_ax_report_file(file_path: str) -> dict:
+    """Parse an AX SSRS report XML file and return structured info."""
+    result = {"name": "", "type": "report", "data_sources": [], "parameters": []}
+    try:
+        tree = _safe_parse(file_path)
+        root = tree.getroot()
+        ns = _get_namespace(root)
+
+        name_el = root.find(f"{ns}Name") if ns else root.find("Name")
+        result["name"] = name_el.text if name_el is not None and name_el.text else os.path.splitext(os.path.basename(file_path))[0]
+
+        for ds_el in root.iter():
+            tag = _clean_tag(ds_el.tag)
+            if tag in ("AxReportDataSource", "DataSource", "AxReportDataSetDataSource"):
+                ds_name_el = ds_el.find(f"{ns}Name" if ns else "Name")
+                query_el = ds_el.find(f"{ns}Query" if ns else "Query")
+                ds_name = ds_name_el.text if ds_name_el is not None and ds_name_el.text else ""
+                query_name = query_el.text if query_el is not None and query_el.text else ""
+                if ds_name:
+                    result["data_sources"].append(ds_name)
+                if query_name and query_name not in result["data_sources"]:
+                    result["data_sources"].append(query_name)
+            if tag in ("AxReportParameter", "ReportParameter"):
+                p_name_el = ds_el.find(f"{ns}Name" if ns else "Name")
+                if p_name_el is not None and p_name_el.text:
+                    result["parameters"].append(p_name_el.text)
+    except Exception:
+        result["name"] = os.path.splitext(os.path.basename(file_path))[0]
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Fallback parser for unclassified XML (other_xml)
+# ---------------------------------------------------------------------------
+
+def parse_other_xml_files(
+    file_paths: list[str],
+) -> tuple[list[Entity], list[Workflow], list[Plugin]]:
+    """Best-effort parse of unclassified XML files.
+
+    Tries each file through entity, workflow, and plugin parsers. If the file
+    yields meaningful data it is kept; otherwise it is discarded.
+    """
+    entities: list[Entity] = []
+    workflows: list[Workflow] = []
+    plugins: list[Plugin] = []
+
+    for fp in file_paths:
+        basename = os.path.splitext(os.path.basename(fp))[0].lower()
+        parsed_something = False
+
+        # Try workflow first (workflows are more specific)
+        try:
+            wfs = parse_workflow_file(fp)
+            for wf in wfs:
+                if wf.steps and wf.steps != [f"Process defined in {os.path.basename(fp)}"]:
+                    workflows.append(wf)
+                    parsed_something = True
+        except Exception:
+            pass
+
+        if parsed_something:
+            continue
+
+        # Try plugin
+        try:
+            pls = parse_plugin_file(fp)
+            for pl in pls:
+                if pl.triggerEntity or pl.operation:
+                    plugins.append(pl)
+                    parsed_something = True
+        except Exception:
+            pass
+
+        if parsed_something:
+            continue
+
+        # Try entity
+        try:
+            ents = parse_entity_file(fp)
+            for ent in ents:
+                if ent.fields:
+                    entities.append(ent)
+                    parsed_something = True
+        except Exception:
+            pass
+
+        # If nothing specific was found, still record as a minimal entity
+        # so the file is at least represented in the knowledge graph.
+        if not parsed_something:
+            entities.append(Entity(
+                name=os.path.splitext(os.path.basename(fp))[0],
+                displayName=f"[Unclassified] {os.path.basename(fp)}",
+                fields=[]
+            ))
+
+    return entities, workflows, plugins
