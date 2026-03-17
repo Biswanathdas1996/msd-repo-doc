@@ -102,6 +102,73 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400;
   }
 
+  /* Mermaid diagram — modern dark overlay */
+  .mermaid-container svg {
+    font-family: 'Inter', system-ui, sans-serif !important;
+  }
+
+  .mermaid-container .node rect,
+  .mermaid-container .node circle,
+  .mermaid-container .node ellipse,
+  .mermaid-container .node polygon {
+    rx: 12px !important;
+    ry: 12px !important;
+    stroke-width: 1.5px !important;
+    filter: drop-shadow(0 4px 20px rgba(59, 130, 246, 0.12)) !important;
+  }
+  .mermaid-container .node .label,
+  .mermaid-container .node .label div,
+  .mermaid-container .node .label span,
+  .mermaid-container .node .label p,
+  .mermaid-container .node .nodeLabel,
+  .mermaid-container .label foreignObject div {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+    color: #f1f5f9 !important;
+  }
+
+  .mermaid-container .cluster rect {
+    rx: 16px !important;
+    ry: 16px !important;
+    stroke-width: 1.5px !important;
+    stroke-dasharray: none !important;
+    filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.25)) !important;
+  }
+  .mermaid-container .cluster span.nodeLabel,
+  .mermaid-container .cluster .nodeLabel {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    color: #93c5fd !important;
+  }
+
+  .mermaid-container .edgePath .path {
+    stroke-width: 2px !important;
+  }
+  .mermaid-container .edgeLabel {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+  }
+  .mermaid-container .edgeLabel rect {
+    fill: #111827 !important;
+    stroke: #1e293b !important;
+    stroke-width: 1px !important;
+    rx: 6px !important;
+    ry: 6px !important;
+    opacity: 0.95 !important;
+  }
+  .mermaid-container .edgeLabel .label span,
+  .mermaid-container .edgeLabel .label div {
+    color: #94a3b8 !important;
+    background: transparent !important;
+  }
+  .mermaid-container .marker,
+  .mermaid-container marker path {
+    fill: #3b82f6 !important;
+  }
+
   /* Custom Scrollbar for dark theme */
   ::-webkit-scrollbar {
     width: 8px;

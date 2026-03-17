@@ -3,29 +3,108 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
 
-// Initialise Mermaid once — refined dark palette for readability
+function saveSvgAsPng(svgHtml: string, filename = 'diagram.png', scale = 3) {
+  const container = document.createElement('div');
+  container.innerHTML = svgHtml;
+  const svgEl = container.querySelector('svg');
+  if (!svgEl) return;
+
+  const bbox = svgEl.viewBox?.baseVal;
+  const w = bbox?.width || parseFloat(svgEl.getAttribute('width') || '800');
+  const h = bbox?.height || parseFloat(svgEl.getAttribute('height') || '600');
+
+  svgEl.setAttribute('width', String(w));
+  svgEl.setAttribute('height', String(h));
+  svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgEl.setAttribute('xmlns:fo', 'http://www.w3.org/1999/xhtml');
+
+  const styles = document.querySelectorAll('style');
+  const extraCss = Array.from(styles)
+    .map(s => s.textContent || '')
+    .filter(t => t.includes('mermaid'))
+    .join('\n');
+  if (extraCss) {
+    const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    styleEl.textContent = extraCss;
+    svgEl.insertBefore(styleEl, svgEl.firstChild);
+  }
+
+  const serialized = new XMLSerializer().serializeToString(svgEl);
+  const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#070a12';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(pngBlob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
+  img.src = dataUrl;
+}
+
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'dark',
+  theme: 'base',
   securityLevel: 'loose',
   fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16 },
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+    padding: 24,
+    nodeSpacing: 60,
+    rankSpacing: 70,
+    diagramPadding: 32,
+    wrappingWidth: 220,
+  },
   themeVariables: {
     darkMode: true,
-    background: '#0d1117',
+    background: 'transparent',
+    fontFamily: "'Inter', system-ui, sans-serif",
+    fontSize: '14px',
+
     primaryColor: '#1e3a5f',
-    primaryTextColor: '#e2e8f0',
+    primaryTextColor: '#f1f5f9',
     primaryBorderColor: '#3b82f6',
-    secondaryColor: '#1a1e2e',
-    tertiaryColor: '#162032',
-    lineColor: '#475569',
-    textColor: '#cbd5e1',
-    mainBkg: '#131a2b',
-    nodeBorder: '#334155',
-    clusterBkg: '#0f1729',
-    clusterBorder: '#1e293b',
-    edgeLabelBackground: '#0d1117',
-    fontSize: '13px',
+
+    secondaryColor: '#1a3352',
+    secondaryTextColor: '#e2e8f0',
+    secondaryBorderColor: '#2563eb',
+
+    tertiaryColor: '#172554',
+    tertiaryTextColor: '#e2e8f0',
+    tertiaryBorderColor: '#1d4ed8',
+
+    lineColor: '#3b82f6',
+    textColor: '#f1f5f9',
+
+    mainBkg: '#1e3a5f',
+    nodeBorder: '#3b82f6',
+    nodeTextColor: '#f1f5f9',
+
+    clusterBkg: '#0c1a2e',
+    clusterBorder: '#1e40af',
+    titleColor: '#93c5fd',
+
+    edgeLabelBackground: '#111827',
+
+    noteBkgColor: '#1e293b',
+    noteTextColor: '#e2e8f0',
+    noteBorderColor: '#3b82f6',
   },
 });
 
@@ -36,8 +115,7 @@ mermaid.initialize({
 function sanitiseMermaid(raw: string): string {
   let s = raw.trim();
   s = s.replace(/^```mermaid\s*/i, '').replace(/```\s*$/, '');
-  s = s.replace(/<br\s*\/?>/gi, ' - ');
-  s = s.replace(/(\b\w+)\{\{([^}]*?)\}\}/g, (_m, id, label) => {
+  s = s.replace(/(\b\w+)\{\{([^}]*?)\}\}/g, (_m: string, id: string, label: string) => {
     const clean = label.trim().replace(/"/g, "'");
     return `${id}["${clean}"]`;
   });
@@ -214,11 +292,21 @@ function FullscreenDiagramViewer({
           </button>
         </div>
 
-        {/* Right: close */}
-        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-muted-foreground hover:text-red-400 transition-all text-xs font-medium" title="Close (Esc)">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          <span className="hidden sm:inline">Close</span>
-        </button>
+        {/* Right: save + close */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+            title="Save as PNG"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+            <span className="hidden sm:inline">Save PNG</span>
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-muted-foreground hover:text-red-400 transition-all text-xs font-medium" title="Close (Esc)">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <span className="hidden sm:inline">Close</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Canvas ── */}
@@ -248,7 +336,7 @@ function FullscreenDiagramViewer({
         >
           <div
             ref={svgWrapRef}
-            className="[&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
+            className="mermaid-container [&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
             dangerouslySetInnerHTML={{ __html: svgHtml }}
           />
         </div>
@@ -305,7 +393,15 @@ function MermaidBlock({ code }: { code: string }) {
     (async () => {
       try {
         const sanitised = sanitiseMermaid(code);
-        const { svg } = await mermaid.render(id, sanitised);
+        let { svg } = await mermaid.render(id, sanitised);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svg, 'image/svg+xml');
+        const svgEl = doc.querySelector('svg');
+        if (svgEl) {
+          svgEl.style.backgroundColor = 'transparent';
+          svgEl.removeAttribute('bgcolor');
+          svg = new XMLSerializer().serializeToString(svgEl);
+        }
         if (!cancelled) {
           setSvgHtml(svg);
           if (containerRef.current) {
@@ -346,66 +442,76 @@ function MermaidBlock({ code }: { code: string }) {
   return (
     <>
       <div className="my-8 relative group">
-        {/* Card wrapper with gradient border effect */}
-        <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#0d1420] via-[#0f1729] to-[#0d1420] p-1 shadow-xl shadow-black/20">
-          {/* Header bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.04]">
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
+        <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-[#080d19] via-[#0b1120] to-[#080d19] shadow-2xl shadow-blue-950/20 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-blue-950/40 to-transparent border-b border-blue-500/10">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+                </svg>
               </div>
-              <span className="text-[11px] text-muted-foreground/60 font-medium tracking-wide uppercase ml-1.5">Flow Diagram</span>
+              <div>
+                <span className="text-sm font-semibold text-blue-100 tracking-tight">Solution Architecture</span>
+                <span className="text-[10px] text-blue-400/60 ml-2">Interactive Diagram</span>
+              </div>
             </div>
             {svgHtml && (
-              <button
-                onClick={openFullscreen}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-muted-foreground hover:text-foreground hover:bg-white/[0.08] hover:border-white/[0.1] transition-all text-[11px] font-medium opacity-0 group-hover:opacity-100"
-                title="Open fullscreen viewer"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
-                </svg>
-                Expand
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                  title="Save diagram as PNG"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                  PNG
+                </button>
+                <button
+                  onClick={openFullscreen}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                  title="Open fullscreen viewer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                  </svg>
+                  Expand
+                </button>
+              </div>
             )}
           </div>
 
-          {/* Diagram body */}
-          <div className="relative min-h-[200px]">
+          <div className="relative min-h-[300px]"
+            style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(30, 58, 95, 0.15) 0%, transparent 70%)' }}
+          >
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                  <span className="text-xs text-muted-foreground">Rendering diagram…</span>
+                  <div className="w-10 h-10 rounded-full border-2 border-blue-500/20 border-t-blue-400 animate-spin" />
+                  <span className="text-xs text-blue-300/60 font-medium">Rendering diagram...</span>
                 </div>
               </div>
             )}
             <div
               ref={containerRef}
-              className={`flex justify-center overflow-x-auto p-6 [&_svg]:max-w-full transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
+              className={`mermaid-container flex justify-center overflow-auto p-8 transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
             />
           </div>
 
-          {/* Footer: click-to-expand hint */}
           {svgHtml && (
-            <div className="flex items-center justify-center py-2 border-t border-white/[0.03]">
+            <div className="flex items-center justify-center py-2.5 border-t border-blue-500/10 bg-blue-950/20">
               <button
                 onClick={openFullscreen}
-                className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                className="flex items-center gap-2 text-[11px] text-blue-400/50 hover:text-blue-300 transition-colors"
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
                 </svg>
-                Click to expand full screen
+                Click to expand fullscreen with zoom and pan
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Fullscreen overlay */}
       {fullscreen && svgHtml && (
         <FullscreenDiagramViewer svgHtml={svgHtml} onClose={closeFullscreen} />
       )}
