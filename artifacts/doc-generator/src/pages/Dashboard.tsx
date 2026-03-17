@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useSolutions, useDelete } from "@/hooks/use-solutions";
+import { useToast } from "@/hooks/use-toast";
 import { UploadDialog } from "@/components/UploadDialog";
 import { format } from "date-fns";
 import { 
@@ -14,7 +15,8 @@ import {
   Boxes,
   Loader2,
   AlertCircle,
-  FileSearch
+  FileSearch,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -28,6 +30,36 @@ export default function Dashboard() {
     e.stopPropagation();
     if (confirm("Are you sure you want to delete this solution? All generated data will be lost.")) {
       deleteMutation.mutate({ id });
+    }
+  };
+
+  const { toast } = useToast();
+
+  const handleDownload = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/py-api/solutions/${id}/download`);
+      if (!res.ok) {
+        toast({ title: "Download unavailable", description: "The original ZIP file is no longer available.", variant: "destructive" });
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition");
+      let filename = `${id}.zip`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", description: "An error occurred while downloading the file.", variant: "destructive" });
     }
   };
 
@@ -103,6 +135,13 @@ export default function Dashboard() {
                       Failed
                     </span>
                   )}
+                  <button
+                    onClick={(e) => handleDownload(e, sol.id)}
+                    className="p-2 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    title="Download ZIP"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
                   <button 
                     onClick={(e) => handleDelete(e, sol.id)}
                     className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"

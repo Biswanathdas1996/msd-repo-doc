@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.schemas import (
@@ -99,15 +99,33 @@ def health_check():
     return {"status": "ok"}
 
 
+UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "data", "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+
 def _process_solution(zip_path: str, solution_name: str) -> Solution:
     try:
         result = extract_solution(zip_path, SOLUTIONS_DIR)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    finally:
         if os.path.exists(zip_path):
             os.unlink(zip_path)
+        raise HTTPException(status_code=400, detail=str(e))
 
+    saved_zip = None
+    if os.path.exists(zip_path):
+        saved_zip = os.path.join(UPLOADS_DIR, f"{result['id']}.zip")
+        shutil.copy2(zip_path, saved_zip)
+        os.unlink(zip_path)
+
+    try:
+        return _build_solution_data(result, solution_name)
+    except Exception:
+        if saved_zip and os.path.exists(saved_zip):
+            os.unlink(saved_zip)
+        raise
+
+
+def _build_solution_data(result: dict, solution_name: str) -> Solution:
     sol_id = result["id"]
     final_name = solution_name or f"Solution {sol_id}"
     structure = result["structure"]
@@ -398,6 +416,20 @@ def get_solution(sol_id: str):
     )
 
 
+@app.get("/solutions/{sol_id}/download")
+def download_solution_zip(sol_id: str):
+    data = _get_solution_or_404(sol_id)
+    zip_path = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
+    if not os.path.exists(zip_path):
+        raise HTTPException(status_code=404, detail="Original ZIP file not available for download")
+    safe_name = data.get("name", sol_id).replace(" ", "_") + ".zip"
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=safe_name,
+    )
+
+
 @app.delete("/solutions/{sol_id}")
 def delete_solution(sol_id: str):
     data = _get_solution_or_404(sol_id)
@@ -409,6 +441,10 @@ def delete_solution(sol_id: str):
     meta_file = os.path.join(METADATA_DIR, f"{sol_id}.json")
     if os.path.exists(meta_file):
         os.unlink(meta_file)
+
+    zip_file = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
+    if os.path.exists(zip_file):
+        os.unlink(zip_file)
 
     del solutions_store[sol_id]
     return {"message": f"Solution {sol_id} deleted"}
