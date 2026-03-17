@@ -16,7 +16,8 @@ import { MarkdownViewer } from "@/components/MarkdownViewer";
 import { format } from "date-fns";
 import { 
   ArrowLeft, Database, Zap, Settings, Share2, FileText, 
-  CheckCircle2, AlertTriangle, Loader2, Sparkles, RefreshCcw, FileSearch
+  CheckCircle2, AlertTriangle, Loader2, Sparkles, RefreshCcw, FileSearch,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +51,33 @@ export default function SolutionDetail() {
   const [selectedSections, setSelectedSections] = useState<string[]>([
     'overview', 'architecture', 'entities', 'workflows'
   ]);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const handleDownload = async (format: "docx" | "pdf") => {
+    setDownloading(format);
+    try {
+      const res = await fetch(`/py-api/solutions/${id}/download/${format}`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const filenameMatch = disposition.match(/filename="?([^";\n]+)"?/);
+      const fallbackExt = format === "docx" ? "docx" : "pdf";
+      const filename = filenameMatch?.[1] || `${solution?.name || "Documentation"}.${fallbackExt}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: `${format.toUpperCase()} downloaded successfully` });
+    } catch {
+      toast({ title: "Download failed", description: "Could not generate the file.", variant: "destructive" });
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   if (isLoadingSolution) {
     return (
@@ -333,7 +361,33 @@ export default function SolutionDetail() {
             <div className="lg:col-span-9 bg-card border border-border rounded-xl overflow-hidden flex flex-col h-full">
               <div className="p-4 border-b border-border/50 bg-muted/20 flex justify-between items-center">
                 <h3 className="font-medium text-foreground">Documentation Preview</h3>
-                {docs && <span className="text-xs text-muted-foreground">Generated {format(new Date(docs.generatedAt), "PP p")}</span>}
+                <div className="flex items-center gap-2">
+                  {docs && <span className="text-xs text-muted-foreground mr-2">Generated {format(new Date(docs.generatedAt), "PP p")}</span>}
+                  {docs && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownload("docx")}
+                        disabled={downloading !== null}
+                        className="text-xs gap-1.5"
+                      >
+                        {downloading === "docx" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                        Word
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownload("pdf")}
+                        disabled={downloading !== null}
+                        className="text-xs gap-1.5"
+                      >
+                        {downloading === "pdf" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                        PDF
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-8 relative">
                 {generateMutation.isPending ? (

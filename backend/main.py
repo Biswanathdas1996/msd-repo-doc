@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import tempfile
@@ -6,6 +7,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.schemas import (
@@ -26,6 +28,7 @@ from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
 from backend.services.ai_reasoning import generate_documentation, verify_documentation
+from backend.services.doc_exporter import export_to_docx, export_to_pdf
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -422,6 +425,35 @@ def verify_docs(sol_id: str):
         _save_solution_metadata(sol_id, data)
 
     return result
+
+
+@app.get("/solutions/{sol_id}/download/{fmt}")
+def download_docs(sol_id: str, fmt: str):
+    data = _get_solution_or_404(sol_id)
+    if not data.get("docs"):
+        raise HTTPException(status_code=404, detail="Documentation not yet generated")
+
+    docs = GeneratedDocs(**data["docs"])
+    solution_name = data.get("name", "Solution")
+    safe_name = re.sub(r"[^\w\s-]", "", solution_name).strip().replace(" ", "_")
+    sections_data = [s.model_dump() for s in docs.sections]
+
+    if fmt == "docx":
+        content = export_to_docx(sections_data, solution_name)
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Documentation.docx"'},
+        )
+    elif fmt == "pdf":
+        content = export_to_pdf(sections_data, solution_name)
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Documentation.pdf"'},
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported format. Use 'docx' or 'pdf'.")
 
 
 if __name__ == "__main__":
