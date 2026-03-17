@@ -18,7 +18,9 @@ from backend.services.extractor import extract_solution
 from backend.services.github_downloader import download_github_repo
 from backend.services.xml_parser import (
     parse_solution_xml, parse_entity_file, parse_workflow_file,
-    parse_plugin_file, parse_form_files
+    parse_plugin_file, parse_form_files,
+    parse_ax_class_file, parse_ax_table_file, parse_ax_view_file,
+    ax_classes_to_plugins
 )
 from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
@@ -124,6 +126,34 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
             sol_metadata = source_info
         else:
             sol_metadata.update(source_info)
+    elif structure.get("is_ax_fo", False):
+        ax_classes_data = []
+        for cf in structure.get("ax_classes", []):
+            ax_classes_data.append(parse_ax_class_file(cf))
+
+        for tf in structure.get("ax_tables", []):
+            entities.append(parse_ax_table_file(tf))
+
+        for vf in structure.get("ax_views", []):
+            entities.append(parse_ax_view_file(vf))
+
+        for de in structure.get("ax_data_entities", []):
+            entities.append(parse_ax_table_file(de))
+
+        plugins.extend(ax_classes_to_plugins(ax_classes_data))
+
+        for wf in structure.get("workflows", []):
+            workflows.extend(parse_workflow_file(wf))
+
+        forms = parse_form_files(structure.get("forms", []))
+
+        if not sol_metadata:
+            sol_metadata = {}
+        sol_metadata["type"] = "ax_fo"
+        sol_metadata["description"] = "Dynamics 365 Finance & Operations (X++) solution"
+        sol_metadata["ax_class_count"] = len(ax_classes_data)
+        sol_metadata["ax_table_count"] = len(structure.get("ax_tables", []))
+        sol_metadata["ax_view_count"] = len(structure.get("ax_views", []))
     else:
         for ef in structure.get("entities", []):
             entities.extend(parse_entity_file(ef))

@@ -221,6 +221,149 @@ def parse_form_files(file_paths: list[str]) -> list[str]:
     return forms
 
 
+def parse_ax_class_file(file_path: str) -> dict:
+    result = {"name": "", "type": "class", "base_class": None, "methods": [], "references": [], "source_code": ""}
+    try:
+        tree = _safe_parse(file_path)
+        root = tree.getroot()
+        ns = _get_namespace(root)
+
+        name_el = root.find(f"{ns}Name") if ns else root.find("Name")
+        if name_el is not None and name_el.text:
+            result["name"] = name_el.text
+        else:
+            result["name"] = os.path.splitext(os.path.basename(file_path))[0]
+
+        declaration_el = root.find(f".//{ns}Declaration" if ns else ".//Declaration")
+        if declaration_el is not None and declaration_el.text:
+            decl = declaration_el.text
+            result["source_code"] += decl
+
+            import re
+            ext_match = re.search(r'extends\s+(\w+)', decl)
+            if ext_match:
+                result["base_class"] = ext_match.group(1)
+
+            impl_match = re.search(r'implements\s+([\w,\s]+)', decl)
+            if impl_match:
+                result["references"].append(f"implements: {impl_match.group(1).strip()}")
+
+            ext_of_match = re.search(r'\[ExtensionOf\(\w+Str\((\w+)\)\)\]', decl)
+            if ext_of_match:
+                result["references"].append(f"extension_of: {ext_of_match.group(1)}")
+
+        methods_container = root.find(f".//{ns}Methods" if ns else ".//Methods")
+        if methods_container is not None:
+            for method_el in methods_container:
+                method_tag = method_el.tag
+                if "}" in method_tag:
+                    method_tag = method_tag.split("}")[1]
+                if method_tag == "Method":
+                    m_name_el = method_el.find(f"{ns}Name" if ns else "Name")
+                    m_source_el = method_el.find(f"{ns}Source" if ns else "Source")
+                    m_name = m_name_el.text if m_name_el is not None and m_name_el.text else "unknown"
+                    m_source = m_source_el.text if m_source_el is not None and m_source_el.text else ""
+                    result["methods"].append({"name": m_name, "source": m_source})
+                    result["source_code"] += "\n" + m_source
+
+            import re
+            all_source = result["source_code"]
+            table_refs = set()
+            for pattern in [
+                r'tableNum\((\w+)\)',
+                r'new\s+(\w+)\(\)',
+                r'\.find\w*\(',
+                r'(\w+)::find',
+            ]:
+                for m in re.finditer(pattern, all_source):
+                    if m.lastindex:
+                        ref = m.group(1)
+                        if ref[0].isupper() and len(ref) > 2 and ref not in {"RecordInsertList", "List", "Set", "Map", "Query", "QueryRun", "QueryBuildDataSource", "Args", "FormDataSource"}:
+                            table_refs.add(ref)
+            for ref in table_refs:
+                if f"table_ref: {ref}" not in result["references"]:
+                    result["references"].append(f"table_ref: {ref}")
+    except Exception:
+        result["name"] = os.path.splitext(os.path.basename(file_path))[0]
+
+    return result
+
+
+def parse_ax_table_file(file_path: str) -> Entity:
+    try:
+        tree = _safe_parse(file_path)
+        root = tree.getroot()
+        ns = _get_namespace(root)
+
+        name_el = root.find(f"{ns}Name") if ns else root.find("Name")
+        name = name_el.text if name_el is not None and name_el.text else os.path.splitext(os.path.basename(file_path))[0]
+
+        root_tag = root.tag
+        if "}" in root_tag:
+            root_tag = root_tag.split("}")[1]
+        is_extension = "Extension" in root_tag
+        display_name = f"{name} (Extension)" if is_extension else name
+
+        fields = []
+        fields_container = root.find(f".//{ns}Fields" if ns else ".//Fields")
+        if fields_container is not None:
+            for field_el in fields_container:
+                f_tag = field_el.tag
+                if "}" in f_tag:
+                    f_tag = f_tag.split("}")[1]
+                f_name_el = field_el.find(f"{ns}Name" if ns else "Name")
+                f_name = f_name_el.text if f_name_el is not None and f_name_el.text else ""
+
+                f_type = field_el.get("{http://www.w3.org/2001/XMLSchema-instance}type", "")
+                if not f_type:
+                    f_type = f_tag.replace("AxTableField", "").replace("AxViewField", "") or "string"
+
+                if f_name:
+                    fields.append(EntityField(name=f_name, type=f_type, displayName=f_name))
+
+        return Entity(name=name, displayName=display_name, fields=fields)
+    except Exception:
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        return Entity(name=name, fields=[])
+
+
+def parse_ax_view_file(file_path: str) -> Entity:
+    return parse_ax_table_file(file_path)
+
+
+def ax_classes_to_plugins(ax_classes: list[dict]) -> list[Plugin]:
+    plugins = []
+    for cls in ax_classes:
+        ext_of = None
+        table_refs = []
+        for ref in cls.get("references", []):
+            if ref.startswith("extension_of:"):
+                ext_of = ref.split(":", 1)[1].strip()
+            elif ref.startswith("table_ref:"):
+                table_refs.append(ref.split(":", 1)[1].strip())
+
+        desc_parts = []
+        if cls.get("base_class"):
+            desc_parts.append(f"Extends: {cls['base_class']}")
+        if ext_of:
+            desc_parts.append(f"Extension of: {ext_of}")
+        if table_refs:
+            desc_parts.append(f"References: {', '.join(table_refs[:10])}")
+
+        method_names = [m["name"] for m in cls.get("methods", [])]
+        if method_names:
+            desc_parts.append(f"Methods: {', '.join(method_names[:15])}")
+
+        plugins.append(Plugin(
+            name=cls["name"],
+            triggerEntity=ext_of or (table_refs[0] if table_refs else None),
+            operation="X++ Class",
+            stage=cls.get("base_class"),
+            description="; ".join(desc_parts) if desc_parts else None
+        ))
+    return plugins
+
+
 def _get_namespace(root) -> str:
     tag = root.tag
     if tag.startswith("{"):
