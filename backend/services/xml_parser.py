@@ -194,7 +194,7 @@ def parse_workflow_file(file_path: str) -> list[Workflow]:
                     steps.append(step_name.strip())
 
             if not steps:
-                steps = [f"Process defined in {os.path.basename(file_path)}"]
+                steps = [f"[NO_DETAILED_STEPS] Process defined in {os.path.basename(file_path)} — workflow logic not extractable from metadata"]
 
             conditions = []
             cond_elements = _find_all(wf_el, ns, ["Condition", "condition"])
@@ -214,7 +214,7 @@ def parse_workflow_file(file_path: str) -> list[Workflow]:
             ))
     except Exception:
         name = os.path.splitext(os.path.basename(file_path))[0]
-        workflows.append(Workflow(name=name, steps=["Workflow processing"]))
+        workflows.append(Workflow(name=name, steps=["[NO_DETAILED_STEPS] Workflow definition could not be parsed — no step details available"]))
 
     return workflows
 
@@ -1194,7 +1194,7 @@ def _parse_cust_workflows(root, ns: str, result: dict):
         if is_bpf:
             steps.append("Business Process Flow")
         elif xaml_file:
-            steps.append(f"XAML definition: {xaml_file.strip().lstrip('/')}")
+            steps.append(f"[NO_DETAILED_STEPS] XAML definition: {xaml_file.strip().lstrip('/')} — workflow logic stored in XAML file, not yet parsed")
 
         result["workflows"].append(Workflow(
             name=name,
@@ -1397,10 +1397,10 @@ def parse_xaml_workflow_file(file_path: str) -> tuple[list[str], list[str]]:
 
                 steps.append(desc)
     except Exception:
-        steps.append(f"XAML workflow in {os.path.basename(file_path)}")
+        steps.append(f"[NO_DETAILED_STEPS] XAML workflow in {os.path.basename(file_path)} — could not parse workflow definition")
 
     if not steps:
-        steps.append(f"Workflow defined in {os.path.basename(file_path)}")
+        steps.append(f"[NO_DETAILED_STEPS] Workflow defined in {os.path.basename(file_path)} — no step details extractable")
 
     return steps, conditions
 

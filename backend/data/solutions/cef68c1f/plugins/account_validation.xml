@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Plugin Name="AccountValidationPlugin" PrimaryEntity="Account" Message="Update" Stage="Pre-operation">
-  <Description>Validates account data before update operations including revenue checks and duplicate detection</Description>
-</Plugin>

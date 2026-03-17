@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Plugin Name="NotificationServicePlugin" PrimaryEntity="Account" Message="Update" Stage="Post-operation">
-  <Description>Sends notifications to relevant stakeholders when account data changes</Description>
-</Plugin>

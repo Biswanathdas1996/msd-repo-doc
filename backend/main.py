@@ -259,6 +259,19 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         workflows.extend(extra_workflows)
         plugins.extend(extra_plugins)
 
+    # --- Deduplicate forms to ensure accurate counts ---
+    forms = list(dict.fromkeys(forms))  # preserve order, remove duplicates
+
+    # --- Deduplicate form_details by (name, entity) ---
+    seen_form_details = set()
+    deduped_form_details = []
+    for fd in form_details:
+        key = (fd.name, fd.entity or "")
+        if key not in seen_form_details:
+            seen_form_details.add(key)
+            deduped_form_details.append(fd)
+    form_details = deduped_form_details
+
     knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources, form_details)
     functional_flows = generate_functional_flows(knowledge_graph)
 
