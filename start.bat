@@ -41,40 +41,22 @@ if %ERRORLEVEL% neq 0 (
     pause & exit /b 1
 )
 
-:: ── Install / sync frontend deps ──────────────
-echo [INFO] Syncing frontend dependencies (pnpm install)...
-pnpm install
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] pnpm install failed.
-    pause & exit /b 1
-)
-echo [OK] Frontend dependencies ready.
-echo.
 
-:: ── Install backend Python deps ───────────────
-echo [INFO] Syncing backend dependencies (pip install)...
-pip install . -q
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] pip install failed.
-    pause & exit /b 1
-)
-echo [OK] Backend dependencies ready.
-echo.
 
 :: ══════════════════════════════════════════════
 :: Launch each service in its own cmd window
 :: ══════════════════════════════════════════════
 
 echo [1/3] Starting Backend - FastAPI (port 5001)...
-start "Backend - FastAPI" cmd /k "cd /d "%ROOT%" && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload || (echo. & echo [ERROR] Backend failed - see above & pause)"
+start "Backend - FastAPI" cmd /k "cd /d %ROOT% && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload || (echo. & echo [ERROR] Backend failed - see above & pause)"
 
 timeout /t 3 /nobreak >nul
 
 echo [2/3] Starting Frontend - Vite doc-generator...
-start "Frontend - Vite" cmd /k "cd /d "%ROOT%\artifacts\doc-generator" && pnpm dev || (echo. & echo [ERROR] Frontend failed - see above & pause)"
+start "Frontend - Vite" cmd /k "cd /d %ROOT%\artifacts\doc-generator && pnpm dev || (echo. & echo [ERROR] Frontend failed - see above & pause)"
 
 echo [3/3] Starting API Server - Express...
-start "API Server - Express" cmd /k "cd /d "%ROOT%\artifacts\api-server" && set NODE_ENV=development && pnpm exec tsx ./src/index.ts || (echo. & echo [ERROR] API Server failed - see above & pause)"
+start "API Server - Express" cmd /k "cd /d %ROOT%\artifacts\api-server && set NODE_ENV=development && pnpm exec tsx ./src/index.ts || (echo. & echo [ERROR] API Server failed - see above & pause)"
 
 echo.
 echo ============================================
