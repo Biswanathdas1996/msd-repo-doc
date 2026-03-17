@@ -84,13 +84,14 @@ SECTION_CONFIGS = {
         "title": "Executive Summary / Solution Overview",
         "order": 1,
         "prompt": (
-            "Generate an Executive Summary for this Microsoft Dynamics CRM solution. Include:\n"
-            "- Business problem statement (inferred from the entities, workflows, and plugins present)\n"
-            "- Objectives of the CRM solution\n"
-            "- High-level architecture overview\n"
-            "- Key stakeholders (inferred from security roles)\n"
-            "- Key benefits delivered\n"
-            "Present this as a professional executive-level overview suitable for leadership review."
+            "Generate an Executive Summary for this Microsoft Dynamics CRM solution based STRICTLY on the metadata provided. Include:\n"
+            "- Solution name, version, and publisher (from solution metadata)\n"
+            "- Summary of what the solution contains: list the exact entity count, workflow count, plugin count, form count, role count\n"
+            "- Business context inferred ONLY from entity names and workflow names actually present\n"
+            "- High-level architecture: list the actual components (entities, plugins, workflows) by name\n"
+            "- Key stakeholders: ONLY if security roles are present in the metadata, list them; otherwise state 'No security roles detected'\n"
+            "- DO NOT fabricate business objectives or benefits not supported by the metadata\n"
+            "Present this as a professional executive-level overview."
         ),
     },
     # --- 2. Business Requirements Document (BRD) ---
@@ -98,13 +99,16 @@ SECTION_CONFIGS = {
         "title": "Business Requirements Document (BRD)",
         "order": 2,
         "prompt": (
-            "Generate a Business Requirements Document based on the solution metadata. Include:\n"
-            "- Business objectives (inferred from entities, workflows, and functional areas)\n"
-            "- Stakeholders (derived from security roles and business units)\n"
-            "- Business workflows (derived from workflow definitions)\n"
-            "- Functional requirements table (FR-01, FR-02, etc.) mapping each workflow/plugin to a requirement\n"
-            "- Non-functional requirements (performance, security, availability based on solution structure)\n"
-            "Format functional requirements as: ID | Description | Related Component"
+            "Generate a Business Requirements Document based STRICTLY on the solution metadata. Include:\n"
+            "- Business objectives inferred ONLY from the entities, workflows, and plugins actually present\n"
+            "- Stakeholders: list ONLY from security roles found in metadata; if none, state 'No security roles detected'\n"
+            "- Business workflows: describe ONLY the workflows found, with their exact trigger entity and trigger event\n"
+            "- Functional requirements table: FR-01, FR-02, etc. — derive requirements ONLY from actual workflows and plugins\n"
+            "  Format: | ID | Description | Related Component | Source |\n"
+            "  The Source column must reference the specific workflow/plugin name from the metadata\n"
+            "- Non-functional requirements: state ONLY what can be determined from the solution structure\n"
+            "  (e.g., if plugins use Pre-operation stage, note data validation requirement)\n"
+            "DO NOT fabricate requirements not evidenced by the metadata."
         ),
     },
     # --- 3. Functional Design Document (FDD) ---
@@ -112,14 +116,15 @@ SECTION_CONFIGS = {
         "title": "Functional Design Document (FDD)",
         "order": 3,
         "prompt": (
-            "Generate a Functional Design Document explaining how Dynamics CRM fulfills the business requirements. Include:\n"
-            "- Module breakdown (group entities into functional modules)\n"
-            "- Entity relationships with a description of each relationship\n"
-            "- Business process flows (derived from workflows)\n"
-            "- Forms and views documentation\n"
-            "- Dashboards (if any detected)\n"
-            "- Security roles mapping to features\n"
-            "Use a table format: Feature | Dynamics Component | Description"
+            "Generate a Functional Design Document based STRICTLY on the metadata. Include:\n"
+            "- Module breakdown: group entities by their relationships (shared workflows/plugins)\n"
+            "- Entity relationships: describe ONLY lookup fields (Type=Lookup) found in entity field metadata\n"
+            "- Business process flows: describe ONLY the actual workflows with their exact steps and conditions from metadata\n"
+            "- Forms: list ONLY forms that appear in the metadata. For each form, state which entity it belongs to and its source file\n"
+            "  DO NOT fabricate forms for entities that have no forms listed\n"
+            "- Dashboards: ONLY if detected in metadata; otherwise state 'No dashboards detected in solution'\n"
+            "- Security roles mapping: ONLY if roles are present in metadata\n"
+            "Use table format: | Feature | Dynamics Component | Component Type | Description |"
         ),
     },
     # --- 4. Technical Design Document (TDD) ---
@@ -127,17 +132,21 @@ SECTION_CONFIGS = {
         "title": "Technical Design Document (TDD)",
         "order": 4,
         "prompt": (
-            "Generate a Technical Design Document. This is the most critical section for developers. Include:\n"
-            "### Solution Architecture\n"
-            "- CRM environment topology\n"
-            "- Integration architecture\n"
-            "- Data flow diagram description\n"
-            "### Components Table\n"
-            "| Component Type | Name | Description |\n"
-            "Cover: Plugins, Workflows, Power Automate flows, JavaScript web resources, UI components\n"
-            "### Integration Details\n"
-            "- REST APIs, Azure services, Middleware, Authentication methods\n"
-            "Document every plugin with its message, stage, entity, and purpose."
+            "Generate a Technical Design Document based STRICTLY on the metadata. Include:\n"
+            "### Plugin Registration Table (CRITICAL — use EXACT metadata values)\n"
+            "| Plugin Name | Assembly | Target Entity | Message | Stage | Execution Mode | Execution Order | Filtering Attributes | Description |\n"
+            "For each plugin, populate ALL columns from the metadata. If a value is not present, write 'N/A'.\n\n"
+            "### Workflow Definition Table\n"
+            "| Workflow Name | Trigger Entity | Trigger Event | Mode | Steps | Conditions |\n"
+            "List ALL workflows with their exact steps and conditions from the metadata.\n\n"
+            "### Components Summary\n"
+            "| Component Type | Name | Target Entity | Description |\n"
+            "List every plugin, workflow, web resource found in the metadata.\n\n"
+            "### Integration Points\n"
+            "Document ONLY integrations explicitly evidenced in plugin descriptions or workflow step names.\n"
+            "For each, state: 'Inferred from: [exact component name and description]'\n"
+            "DO NOT fabricate REST API endpoints, Azure services, authentication methods, or middleware unless they appear in the metadata.\n"
+            "If no integration evidence is found, state: 'No external integration endpoints detected in solution metadata.'"
         ),
     },
     # --- 5. Data Model Documentation ---
@@ -145,14 +154,20 @@ SECTION_CONFIGS = {
         "title": "Data Model Documentation",
         "order": 5,
         "prompt": (
-            "Generate comprehensive Data Model Documentation. Include:\n"
-            "- Entity purpose table: Entity | Purpose | Key Fields\n"
-            "- Complete field definitions for each entity (name, type, required, display name)\n"
-            "- Lookup relationships between entities\n"
-            "- Option sets / choice fields\n"
-            "- Calculated fields (if detected)\n"
-            "- Entity relationship diagram description (textual representation)\n"
-            "Group entities by functional area and describe how they relate to each other."
+            "Generate comprehensive Data Model Documentation based STRICTLY on the metadata. Include:\n"
+            "### Entity Schema Tables (CRITICAL — use EXACT field metadata)\n"
+            "For EACH entity, generate a table with these EXACT columns:\n"
+            "| Field Name | Display Name | Type | Required | Description |\n"
+            "Populate from the field_details in the metadata. The 'Required' column MUST match the metadata exactly (true/false).\n"
+            "DO NOT change any field's required status from what the metadata states.\n\n"
+            "### Entity Purpose Summary\n"
+            "| Entity | Display Name | Field Count | Forms | Related Workflows | Related Plugins |\n\n"
+            "### Lookup Relationships\n"
+            "List ONLY fields with Type=Lookup as entity relationships. Show: Source Entity → Field Name → Target Entity (inferred from field name).\n"
+            "DO NOT fabricate relationships not evidenced by lookup fields.\n\n"
+            "### Option Set Fields\n"
+            "List ONLY fields with Type=Picklist or Type=OptionSet found in the metadata.\n"
+            "If none found, state: 'No option set fields detected.'"
         ),
     },
     # --- 6. Integration Documentation ---
@@ -160,14 +175,24 @@ SECTION_CONFIGS = {
         "title": "Integration Documentation",
         "order": 6,
         "prompt": (
-            "Generate Integration Documentation for this CRM solution. Include:\n"
-            "- External systems integrated (inferred from plugins, web resources, and workflows)\n"
-            "- API endpoints and connection points\n"
-            "- Authentication methods\n"
-            "- Message formats and data payloads\n"
-            "- Integration flow descriptions: Source → Target, Method, Auth, Trigger\n"
-            "- Any Azure service connections detected\n"
-            "Document each integration point with: System | Method | Auth | Payload | Trigger"
+            "Generate Integration Documentation based STRICTLY on what the metadata evidences. Include:\n"
+            "### Detected Integration Points\n"
+            "Scan plugin descriptions and workflow step names for references to external systems.\n"
+            "For EACH detected reference, document:\n"
+            "| Integration Point | Evidence Source | Component Type | Component Name | Inferred System |\n\n"
+            "For example, if a workflow step says 'Sync to external CRM', document it as:\n"
+            "| External CRM Sync | Workflow step name | Workflow | Contact Synchronization | External CRM |\n\n"
+            "### Important Disclaimer\n"
+            "State clearly: 'The following integration points are INFERRED from component names and descriptions. "
+            "Actual integration details (endpoints, authentication, payloads) are not present in the solution metadata "
+            "and must be verified with the development team.'\n\n"
+            "DO NOT fabricate:\n"
+            "- API endpoint URLs\n"
+            "- Authentication methods or credentials\n"
+            "- Message formats or data payloads\n"
+            "- Azure service connections\n"
+            "- Middleware configurations\n"
+            "If no integration evidence is found, state: 'No external integration points detected in solution metadata.'"
         ),
     },
     # --- 7. Customization Documentation ---
@@ -175,14 +200,20 @@ SECTION_CONFIGS = {
         "title": "Customization Documentation",
         "order": 7,
         "prompt": (
-            "Generate Customization Documentation detailing ALL custom code and configuration. Include:\n"
-            "- Plugins: Name, Target Entity, Message, Stage, Purpose\n"
-            "- Custom workflows: Name, Trigger, Steps, Purpose\n"
-            "- JavaScript form scripts (from web resources): Name, Related Entity/Form, Purpose\n"
-            "- Custom entities (non-OOB entities)\n"
-            "- Custom APIs\n"
-            "- Web resources by type (JS, HTML, CSS, images)\n"
-            "Use a table: Component | Type | Target | Purpose"
+            "Generate Customization Documentation listing ALL custom components from the metadata. Include:\n"
+            "### Plugins\n"
+            "| Plugin Name | Target Entity | Message | Stage | Execution Mode | Execution Order | Assembly | Description |\n"
+            "Populate ALL columns from metadata. Use 'N/A' for missing values.\n\n"
+            "### Custom Workflows\n"
+            "| Workflow Name | Trigger Entity | Trigger Event | Mode | Step Count | Has Conditions |\n\n"
+            "### Forms\n"
+            "| Form Name | Entity | Source File | Tab Count | Section Count | Control Count |\n"
+            "List ONLY forms found in the metadata. DO NOT add forms for entities that have none.\n\n"
+            "### Web Resources\n"
+            "| Resource Name | Type | Related Entity | Description |\n"
+            "List ONLY from metadata. If none detected, state 'No web resources detected.'\n\n"
+            "### Custom Entities\n"
+            "List all entities found in the solution with their field counts."
         ),
     },
     # --- 8. Security Model ---
@@ -190,14 +221,24 @@ SECTION_CONFIGS = {
         "title": "Security Model",
         "order": 8,
         "prompt": (
-            "Generate Security Model documentation. Include:\n"
-            "- Business Units (inferred from roles)\n"
-            "- Security roles with their full privilege breakdown\n"
-            "- Field security profiles (if detected)\n"
-            "- Teams (if detected)\n"
-            "- Access control model / role hierarchy\n"
-            "- Role-to-entity permission matrix: Role | Entity | Create | Read | Write | Delete\n"
-            "Document every role with its privileges and the entities it can access."
+            "Generate Security Model documentation based STRICTLY on the metadata.\n\n"
+            "### Security Roles Found in Solution\n"
+            "If security roles are present in the metadata, for each role document:\n"
+            "| Role Name | Description | Privilege Count | Privileges |\n"
+            "List the actual privileges extracted from the metadata.\n\n"
+            "### Role-Entity Access (from metadata only)\n"
+            "If role privilege names reference entity names, create a mapping table:\n"
+            "| Role | Entity | Privileges |\n"
+            "ONLY populate this if the privilege names in the metadata contain entity references.\n\n"
+            "If NO security roles are found in the metadata, state clearly:\n"
+            "'No security roles were detected in the solution metadata. "
+            "Security configuration may exist in the Dynamics environment but is not included in this solution package.'\n\n"
+            "DO NOT fabricate:\n"
+            "- Business units\n"
+            "- Teams\n"
+            "- Field security profiles\n"
+            "- Access control models\n"
+            "unless they are explicitly present in the metadata."
         ),
     },
     # --- 9. Deployment Documentation ---
@@ -206,13 +247,22 @@ SECTION_CONFIGS = {
         "order": 9,
         "prompt": (
             "Generate Deployment Documentation. Include:\n"
-            "- Solution packages (managed vs unmanaged)\n"
-            "- Environment strategy: DEV → SIT → UAT → PROD\n"
-            "- Deployment steps and checklist\n"
-            "- Configuration settings per environment\n"
-            "- Pre-deployment and post-deployment checks\n"
-            "- Rollback procedures\n"
-            "- Solution version information from the metadata"
+            "### Solution Package Details (from metadata)\n"
+            "- Solution Name / Unique Name: from solution metadata\n"
+            "- Version: from solution metadata\n"
+            "- Publisher: from solution metadata\n"
+            "- Managed/Unmanaged: from solution metadata (if detected)\n"
+            "- Dependencies: from solution metadata (if detected)\n\n"
+            "### Solution Components Count\n"
+            "| Component Type | Count |\n"
+            "List exact counts from the metadata: entities, workflows, plugins, forms, roles, web resources.\n\n"
+            "### Standard Deployment Checklist\n"
+            "Provide a standard Dynamics CRM deployment checklist applicable to this solution.\n\n"
+            "### Pre-deployment Validation\n"
+            "Based on the ACTUAL plugins and workflows found, list specific pre-deployment checks:\n"
+            "- For each plugin: verify assembly registration\n"
+            "- For each workflow: verify trigger entity exists\n"
+            "Use actual component names from the metadata."
         ),
     },
     # --- 10. Testing Documentation ---
@@ -220,17 +270,25 @@ SECTION_CONFIGS = {
         "title": "Testing Documentation",
         "order": 10,
         "prompt": (
-            "Generate Testing Documentation. Include:\n"
-            "### Test Plan\n"
-            "- Test scope and strategy\n"
-            "### Test Cases (generated from workflows and plugins)\n"
-            "| Test Case ID | Scenario | Entity | Expected Result | Type |\n"
-            "Generate at least one test case for each workflow and plugin.\n"
-            "### Test Types Coverage\n"
-            "- Unit testing (plugins)\n"
-            "- Integration testing (cross-entity workflows)\n"
-            "- UAT testing (business process flows)\n"
-            "- Performance testing considerations"
+            "Generate Testing Documentation with structured test cases derived from ACTUAL solution components.\n\n"
+            "### Test Plan Overview\n"
+            "- Scope: testing of the components found in this solution\n"
+            "- List the specific entities, workflows, and plugins to be tested by name\n\n"
+            "### Test Cases from Workflows\n"
+            "For EACH workflow in the metadata, generate 1-2 test cases:\n\n"
+            "| Test ID | Workflow | Scenario | Preconditions | Steps | Expected Result | Type |\n"
+            "|---------|----------|----------|---------------|-------|-----------------|------|\n\n"
+            "Use the actual workflow name, trigger entity, trigger event, steps, and conditions.\n"
+            "The test steps should reference the actual workflow steps from the metadata.\n\n"
+            "### Test Cases from Plugins\n"
+            "For EACH plugin in the metadata, generate 1-2 test cases:\n\n"
+            "| Test ID | Plugin | Scenario | Entity | Message | Expected Result | Type |\n"
+            "|---------|--------|----------|--------|---------|-----------------|------|\n\n"
+            "Use the actual plugin name, target entity, message, and stage.\n\n"
+            "### Test Coverage Matrix\n"
+            "| Component | Component Type | Test IDs | Coverage |\n"
+            "Map each workflow and plugin to its test case IDs.\n\n"
+            "IMPORTANT: Use clean, well-formatted markdown tables. Do NOT generate malformed or truncated tables."
         ),
     },
     # --- 11. Support & Operations Guide ---
@@ -238,14 +296,23 @@ SECTION_CONFIGS = {
         "title": "Support & Operations Guide",
         "order": 11,
         "prompt": (
-            "Generate a Support & Operations Guide for production support teams. Include:\n"
-            "- Monitoring strategy for the CRM solution\n"
-            "- Known issues and common problems (inferred from solution complexity)\n"
-            "- Troubleshooting guide for each plugin and workflow\n"
-            "- Logging approach (CRM plugin trace logs, Azure logs, Application Insights)\n"
-            "- Escalation procedures\n"
-            "- Health check procedures\n"
-            "Create a troubleshooting table: Issue | Component | Resolution Steps"
+            "Generate a Support & Operations Guide based on the ACTUAL solution components.\n\n"
+            "### Component Health Monitoring\n"
+            "For each plugin found in the metadata, provide monitoring guidance:\n"
+            "| Plugin Name | Entity | Message | Stage | What to Monitor |\n\n"
+            "### Workflow Monitoring\n"
+            "For each workflow, provide operational guidance:\n"
+            "| Workflow Name | Trigger Entity | Trigger | What to Monitor |\n\n"
+            "### Troubleshooting Guide\n"
+            "For each plugin and workflow, generate a troubleshooting entry:\n"
+            "| Component | Type | Common Issue | Resolution Steps |\n"
+            "Base the issues on the actual component type (e.g., Pre-operation plugin → validation failures,\n"
+            "Post-operation plugin → async processing issues).\n\n"
+            "### Logging\n"
+            "Describe standard Dynamics CRM logging applicable to the detected components:\n"
+            "- Plugin Trace Log for plugins\n"
+            "- System Jobs for async workflows\n"
+            "DO NOT fabricate Azure or Application Insights references unless evidenced in metadata."
         ),
     },
     # --- 12. User Guide ---
@@ -253,14 +320,18 @@ SECTION_CONFIGS = {
         "title": "User Guide",
         "order": 12,
         "prompt": (
-            "Generate a User Guide for business users. Include:\n"
-            "- How to use each major entity (create, update, view records)\n"
-            "- Step-by-step guides for each business process flow\n"
-            "- How to navigate forms\n"
-            "- Tips and best practices\n"
-            "- FAQ section\n"
-            "Write in end-user-friendly language, avoiding technical jargon. "
-            "Organize by functional area (e.g., Lead Management, Case Tracking)."
+            "Generate a User Guide for business users based on the ACTUAL solution components.\n\n"
+            "For EACH entity in the metadata:\n"
+            "### [Entity Name]\n"
+            "- Purpose (inferred from entity name and fields)\n"
+            "- Key fields: list the ACTUAL fields from metadata with their display names and whether they are required\n"
+            "- Available forms: list ONLY forms found in the metadata for this entity. If no forms, state 'No custom forms detected'\n"
+            "- Related workflows: list the ACTUAL workflows that trigger on this entity\n\n"
+            "### Business Process Guides\n"
+            "For each workflow, provide a user-friendly step-by-step guide using the ACTUAL workflow steps from metadata.\n\n"
+            "### FAQ\n"
+            "Generate FAQs based on ACTUAL solution components (e.g., 'What happens when I update an Account?' → reference the actual plugins/workflows that trigger on Account Update).\n\n"
+            "Write in end-user-friendly language. Use actual field names and form names from the metadata."
         ),
     },
     # --- 13. Solution Inventory ---
@@ -268,14 +339,29 @@ SECTION_CONFIGS = {
         "title": "Solution Inventory",
         "order": 13,
         "prompt": (
-            "Generate a complete Solution Inventory listing ALL CRM components. Include tables for:\n"
-            "- Entities: | Component Type | Name | Display Name | Field Count |\n"
-            "- Plugins: | Component Type | Name | Target Entity | Message | Stage |\n"
-            "- Workflows: | Component Type | Name | Trigger Entity | Trigger Event |\n"
-            "- Web Resources: | Component Type | Name | Type | Related Entity |\n"
-            "- Security Roles: | Component Type | Name | Privilege Count |\n"
-            "- Forms: | Component Type | Name | Entity |\n"
-            "This must be an exhaustive list of EVERY component found in the solution."
+            "Generate a complete Solution Inventory listing EVERY component from the metadata.\n\n"
+            "### Entities\n"
+            "| # | Entity Name | Display Name | Field Count | Required Fields | Forms |\n"
+            "For each entity, count fields with required=true and list form names.\n\n"
+            "### Entity Field Details\n"
+            "For EACH entity, generate a sub-table:\n"
+            "#### [Entity Name] Fields\n"
+            "| Field Name | Display Name | Type | Required |\n"
+            "Use EXACT values from field_details in the metadata.\n\n"
+            "### Plugins\n"
+            "| # | Plugin Name | Target Entity | Message | Stage | Execution Mode | Description |\n\n"
+            "### Workflows\n"
+            "| # | Workflow Name | Trigger Entity | Trigger Event | Mode | Step Count | Condition Count |\n\n"
+            "### Forms\n"
+            "| # | Form Name | Entity | Source File |\n"
+            "List ONLY forms from the metadata.\n\n"
+            "### Web Resources\n"
+            "| # | Name | Type | Related Entity | Description |\n"
+            "If none, state 'No web resources detected.'\n\n"
+            "### Security Roles\n"
+            "| # | Role Name | Privilege Count | Description |\n"
+            "If none, state 'No security roles detected.'\n\n"
+            "This inventory must be EXHAUSTIVE — every component in the metadata must appear."
         ),
     },
     # --- 14. Configuration & Environment Details ---
@@ -283,14 +369,24 @@ SECTION_CONFIGS = {
         "title": "Configuration & Environment Details",
         "order": 14,
         "prompt": (
-            "Generate Configuration & Environment Details documentation. Include:\n"
-            "- Environment URLs template (Dev, Test, UAT, Prod)\n"
-            "- Integration endpoints\n"
-            "- Secrets management approach\n"
-            "- Azure resources used (if detected)\n"
-            "- Solution-specific configuration settings\n"
-            "- Publisher information and solution version\n"
-            "Use the solution metadata to populate version, publisher, and description fields."
+            "Generate Configuration & Environment Details based on the solution metadata.\n\n"
+            "### Solution Package Information\n"
+            "| Property | Value |\n"
+            "| Solution Name | [from metadata] |\n"
+            "| Version | [from metadata] |\n"
+            "| Publisher | [from metadata] |\n"
+            "| Managed | [from metadata, or 'Not specified'] |\n"
+            "| Description | [from metadata] |\n"
+            "| Dependencies | [from metadata, or 'None detected'] |\n\n"
+            "### Component Summary\n"
+            "| Component Type | Count | Details |\n"
+            "Use actual counts from the metadata.\n\n"
+            "### Environment Deployment Matrix\n"
+            "Provide a standard Dev/Test/UAT/Prod matrix template.\n\n"
+            "### Plugin Registration Requirements\n"
+            "For each plugin found, document the registration requirements using actual metadata:\n"
+            "| Plugin | Assembly | Entity | Message | Stage | Mode |\n\n"
+            "DO NOT fabricate Azure configuration, secrets, or integration endpoints."
         ),
     },
     # --- 15. Change Log / Version History ---
@@ -298,13 +394,51 @@ SECTION_CONFIGS = {
         "title": "Change Log / Version History",
         "order": 15,
         "prompt": (
-            "Generate a Change Log / Version History section. Include:\n"
-            "- Current version information from the solution metadata\n"
-            "- Version history table template: | Version | Date | Changes | Author |\n"
-            "- Release notes template\n"
-            "- Change management process description\n"
-            "Pre-populate v1.0 with the current solution components as the initial release. "
-            "Include guidance on how to maintain this log going forward."
+            "Generate a Change Log / Version History section.\n\n"
+            "### Current Version\n"
+            "| Property | Value |\n"
+            "| Version | [from solution metadata] |\n"
+            "| Publisher | [from solution metadata] |\n\n"
+            "### Initial Release Inventory\n"
+            "Document the current solution components as version 1.0:\n"
+            "| Version | Date | Component Type | Component Name | Change Description |\n"
+            "List every entity, workflow, plugin, form found in the metadata as 'Initial release'.\n\n"
+            "### Version History Template\n"
+            "Provide a template for future change tracking:\n"
+            "| Version | Date | Author | Changes | Impact |\n\n"
+            "### Change Management Process\n"
+            "Provide standard Dynamics CRM change management guidance."
+        ),
+    },
+    # --- 16. Solution Flow Diagram (Mermaid) ---
+    "solution_flow_diagram": {
+        "title": "Solution Flow Diagram",
+        "order": 16,
+        "prompt": (
+            "Generate a comprehensive Mermaid diagram that visualises the ENTIRE solution flow. "
+            "The output MUST be ONLY valid Mermaid markup inside a single ```mermaid code fence — no prose before or after the diagram.\n\n"
+            "Use a `flowchart TD` (top-down) layout with the following structure:\n\n"
+            "1. **Entity subgraphs** — create a `subgraph` for each entity detected in the metadata. "
+            "Inside each subgraph list the entity's key required fields as nodes.\n"
+            "2. **Plugin nodes** — for every plugin, add a node labelled `PluginName\\n(Message · Stage)` and draw an edge FROM the target entity TO the plugin.\n"
+            "3. **Workflow nodes** — for every workflow, add a node labelled `WorkflowName\\n(Trigger · Mode)` and draw an edge FROM the trigger entity TO the workflow.\n"
+            "4. **Form nodes** — for every form, add a node and link it to its parent entity with a dashed edge.\n"
+            "5. **Security role nodes** — if roles exist, add them in a separate subgraph and link to the entities whose privileges they reference.\n"
+            "6. **Cross-entity relationships** — if a workflow or plugin references or updates a SECOND entity, draw an edge between them.\n\n"
+            "Styling rules:\n"
+            "- Use QUOTED labels for every node: `nodeId[\"Label text\"]`.\n"
+            "- Differentiate component types by prefix/emoji in the label, NOT by special bracket shapes. "
+            "  Examples: `ent_acct[\"Entity: Account\"]`, `plg_val[\"Plugin: ValidateAccount\"]`, `wf_welcome[\"Workflow: Welcome Email\"]`, `frm_main[\"Form: Main Form\"]`, `role_admin[\"Role: System Admin\"]`.\n"
+            "- NEVER use double-brace hexagon syntax `{{ }}` — it causes parser errors.\n"
+            "- NEVER use `<br>` or `<br/>` HTML tags inside node labels. Keep each label on a single line. Use a dash or pipe to separate details (e.g., `plg_val[\"Plugin: Validate - Create - PreOp\"]`).\n"
+            "- Label every edge with the relationship type (e.g., `-->|triggers|`, `-.->|has form|`).\n"
+            "- Keep node IDs short, unique, and alphanumeric with underscores (e.g., `ent_account`, `plg_acct_val`, `wf_welcome`).\n"
+            "- Do NOT add any text, headings, or explanations outside the mermaid code fence.\n\n"
+            "IMPORTANT CONSTRAINTS:\n"
+            "- Include ONLY components that exist in the metadata. Do NOT fabricate nodes.\n"
+            "- The diagram must be syntactically valid Mermaid — no broken arrows, no unmatched quotes, no duplicate node IDs, no HTML tags inside labels.\n"
+            "- If the solution is large, focus on the main flow and add a comment `%% Simplified for readability` at the top.\n"
+            "- Wrap the ENTIRE response in a single ```mermaid ... ``` code fence."
         ),
     },
 }
@@ -515,17 +649,81 @@ Your job:
 
 
 def _compact_graph_summary(graph: KnowledgeGraph) -> str:
-    """Build a compact JSON summary of the full knowledge graph."""
+    """Build a detailed JSON summary of the full knowledge graph including field metadata."""
+    entity_details = {}
+    for ename, edata in graph.entities.items():
+        entity_details[ename] = {
+            "field_count": len(edata.fields),
+            "fields": edata.fields,
+            "field_details": [
+                {
+                    "name": fd.name,
+                    "type": fd.type,
+                    "displayName": fd.displayName,
+                    "required": fd.required,
+                }
+                for fd in edata.fieldDetails
+            ] if edata.fieldDetails else [],
+            "forms": edata.forms,
+            "form_details": [
+                {
+                    "name": fdet.name,
+                    "entity": fdet.entity,
+                    "tabs": fdet.tabs,
+                    "sections": fdet.sections,
+                    "controls": fdet.controls,
+                    "sourceFile": fdet.sourceFile,
+                }
+                for fdet in edata.formDetails
+            ] if edata.formDetails else [],
+            "workflows": edata.workflows,
+            "plugins": edata.plugins,
+        }
+
+    workflow_details = {}
+    for wname, wdata in graph.workflows.items():
+        workflow_details[wname] = {
+            "trigger": wdata.trigger,
+            "triggerEntity": wdata.triggerEntity,
+            "mode": wdata.mode,
+            "scope": wdata.scope,
+            "steps": wdata.steps,
+            "conditions": wdata.conditions,
+            "plugins": wdata.plugins,
+            "relatedEntities": wdata.relatedEntities,
+        }
+
+    plugin_details = {}
+    for pname, pdata in graph.plugins.items():
+        plugin_details[pname] = {
+            "triggerEntity": pdata.triggerEntity,
+            "operation": pdata.operation,
+            "stage": pdata.stage,
+            "executionMode": pdata.executionMode,
+            "executionOrder": pdata.executionOrder,
+            "filteringAttributes": pdata.filteringAttributes,
+            "assemblyName": pdata.assemblyName,
+            "description": pdata.description,
+        }
+
+    role_details = {}
+    for rname, rdata in graph.roles.items():
+        role_details[rname] = {
+            "privileges": rdata.privileges,
+            "relatedEntities": rdata.relatedEntities,
+            "description": rdata.description,
+        }
+
     return json.dumps({
         "entity_count": len(graph.entities),
         "workflow_count": len(graph.workflows),
         "plugin_count": len(graph.plugins),
         "role_count": len(graph.roles),
         "webresource_count": len(graph.webResources),
-        "entity_names": list(graph.entities.keys()),
-        "workflow_names": list(graph.workflows.keys()),
-        "plugin_names": list(graph.plugins.keys()),
-        "role_names": list(graph.roles.keys()),
+        "entities": entity_details,
+        "workflows": workflow_details,
+        "plugins": plugin_details,
+        "roles": role_details,
         "webresource_names": list(graph.webResources.keys()),
     }, indent=2)
 
@@ -539,19 +737,25 @@ that follows the standard Dynamics CRM documentation hierarchy:
 7. Customization      8. Security Model         9. Deployment
 10. Testing           11. Support & Operations  12. User Guide
 13. Solution Inventory 14. Environment Config   15. Change Log
+16. Solution Flow Diagram (Mermaid)
 
 Based on the provided solution metadata and knowledge graph relationships,
 generate enterprise-grade documentation for the requested section.
 
-Rules:
-- Only use the provided metadata. Do not invent information.
-- Return well-structured markdown documentation.
-- Use headers (##, ###), bullet points, and tables where appropriate.
-- Be thorough but concise — cover every component present in the metadata.
-- Include specific field names, workflow steps, plugin details, and role privileges.
-- Use professional CRM consulting language suitable for Microsoft Dynamics projects.
-- When data is insufficient for a section, provide a template with placeholders marked as [TO BE COMPLETED].
-- Start with a brief section introduction, then provide detailed content."""
+CRITICAL RULES — FOLLOW STRICTLY:
+1. ONLY document what is explicitly present in the metadata. NEVER invent, assume, or speculate about components, integrations, endpoints, or features not found in the data.
+2. NEVER use "[TO BE COMPLETED]" or any placeholder text. If information is not available in the metadata, explicitly state "Not detected in solution metadata" or omit the sub-section entirely.
+3. For entity fields: use the EXACT field details from the metadata including name, type, required status, and display name. Do NOT change required/optional status — it must match the metadata exactly.
+4. For forms: ONLY list forms that appear in the metadata. Do NOT fabricate forms for entities that have no forms listed.
+5. For integrations: ONLY document integration points that are explicitly evidenced in plugin descriptions, workflow steps, or web resources. Mark them as "Inferred from [component name]" and do NOT fabricate API endpoints, auth methods, or payloads.
+6. For plugins: include ALL available metadata — entity, message, stage, execution mode, execution order, filtering attributes, assembly, and description.
+7. For workflows: include trigger event, trigger entity, mode (sync/async if available), all steps, and all conditions.
+8. For security roles: ONLY document roles and privileges actually present in the metadata. Do NOT generate a hypothetical role-entity permission matrix unless the privilege data supports it.
+9. For test cases: generate structured, realistic test cases based ONLY on actual workflows and plugins found in the metadata. Use a clean markdown table format.
+10. Return well-structured markdown documentation with headers (##, ###), bullet points, and tables.
+11. Be thorough — cover EVERY component present in the metadata with specific names, field names, and details.
+12. Use professional CRM consulting language suitable for Microsoft Dynamics projects.
+13. Start with a brief section introduction, then provide detailed content."""
 
 
 def verify_documentation(

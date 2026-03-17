@@ -95,6 +95,8 @@ def analyze_structure(folder: str) -> dict:
         "roles": [],
         "other_xml": [],
         "solution_xml": None,
+        "customizations_xml": None,
+        "xaml_workflows": [],
         "ax_classes": [],
         "ax_tables": [],
         "ax_views": [],
@@ -114,6 +116,13 @@ def analyze_structure(folder: str) -> dict:
 
             if fl == "solution.xml" and rel_root == ".":
                 structure["solution_xml"] = full_path
+            elif fl == "customizations.xml":
+                # Monolithic CRM customizations file — prefer root-level
+                if rel_root == "." or structure["customizations_xml"] is None:
+                    structure["customizations_xml"] = full_path
+            elif fl.endswith(".xaml"):
+                # XAML workflow definitions (CRM solution ZIPs)
+                structure["xaml_workflows"].append(full_path)
             elif fl.endswith(".xml"):
                 classified = False
                 if "entit" in rel_root or "entit" in fl:

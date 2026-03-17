@@ -80,6 +80,7 @@
     "@xyflow/react": "^12.10.1",
     "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
+    "mermaid": "^11.13.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   }

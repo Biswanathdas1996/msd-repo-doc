@@ -14,6 +14,9 @@ class EntityField(BaseModel):
     type: str
     displayName: Optional[str] = None
     required: bool = False
+    description: Optional[str] = None
+    maxLength: Optional[int] = None
+    options: Optional[list[str]] = None  # for picklist/optionset fields
 
 
 class Entity(BaseModel):
@@ -29,6 +32,8 @@ class Workflow(BaseModel):
     name: str
     triggerEntity: Optional[str] = None
     trigger: Optional[str] = None
+    mode: Optional[str] = None  # Synchronous / Asynchronous / RealTime
+    scope: Optional[str] = None  # Organization / Business Unit / User
     steps: list[str] = []
     plugins: list[str] = []
     conditions: list[str] = []
@@ -41,6 +46,11 @@ class Plugin(BaseModel):
     operation: Optional[str] = None
     stage: Optional[str] = None
     description: Optional[str] = None
+    executionMode: Optional[str] = None  # Synchronous / Asynchronous
+    executionOrder: Optional[int] = None
+    filteringAttributes: Optional[list[str]] = None
+    assemblyName: Optional[str] = None
+    secureConfiguration: Optional[str] = None
 
 
 class Role(BaseModel):
@@ -57,9 +67,27 @@ class WebResource(BaseModel):
     relatedEntity: Optional[str] = None
 
 
+class KnowledgeGraphFieldDetail(BaseModel):
+    name: str
+    type: str = "string"
+    displayName: Optional[str] = None
+    required: bool = False
+
+
+class FormDetail(BaseModel):
+    name: str
+    entity: Optional[str] = None
+    tabs: list[str] = []
+    sections: list[str] = []
+    controls: list[str] = []
+    sourceFile: Optional[str] = None
+
+
 class KnowledgeGraphEntity(BaseModel):
-    fields: list[str] = []
+    fields: list[str] = []  # kept for backward compat
+    fieldDetails: list[KnowledgeGraphFieldDetail] = []
     forms: list[str] = []
+    formDetails: list[FormDetail] = []
     workflows: list[str] = []
     plugins: list[str] = []
 
@@ -67,7 +95,10 @@ class KnowledgeGraphEntity(BaseModel):
 class KnowledgeGraphWorkflow(BaseModel):
     trigger: Optional[str] = None
     triggerEntity: Optional[str] = None
+    mode: Optional[str] = None
+    scope: Optional[str] = None
     steps: list[str] = []
+    conditions: list[str] = []
     plugins: list[str] = []
     relatedEntities: list[str] = []
 
@@ -76,6 +107,11 @@ class KnowledgeGraphPlugin(BaseModel):
     triggerEntity: Optional[str] = None
     operation: Optional[str] = None
     stage: Optional[str] = None
+    executionMode: Optional[str] = None
+    executionOrder: Optional[int] = None
+    filteringAttributes: Optional[list[str]] = None
+    assemblyName: Optional[str] = None
+    description: Optional[str] = None
 
 
 class KnowledgeGraphRole(BaseModel):
@@ -117,6 +153,9 @@ class SolutionMetadata(BaseModel):
     solutionVersion: Optional[str] = None
     publisher: Optional[str] = None
     description: Optional[str] = None
+    uniqueName: Optional[str] = None
+    isManaged: Optional[bool] = None
+    dependencies: Optional[list[str]] = None
 
 
 class SolutionSummary(BaseModel):

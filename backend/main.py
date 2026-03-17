@@ -24,10 +24,12 @@ from backend.services.extractor import extract_solution
 from backend.services.github_downloader import download_github_repo
 from backend.services.xml_parser import (
     parse_solution_xml, parse_entity_file, parse_workflow_file,
-    parse_plugin_file, parse_form_files, parse_role_files,
+    parse_plugin_file, parse_form_files, parse_form_files_detailed,
+    parse_role_files,
     parse_webresource_files, parse_other_xml_files,
     parse_ax_class_file, parse_ax_table_file, parse_ax_view_file,
-    ax_classes_to_plugins, parse_ax_query_file, parse_ax_report_file
+    ax_classes_to_plugins, parse_ax_query_file, parse_ax_report_file,
+    parse_customizations_xml, parse_xaml_workflow_file
 )
 from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
@@ -120,6 +122,7 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
     roles: list[Role] = []
     webresources: list[WebResource] = []
     source_info = {}
+    form_details = []
 
     if is_source_code:
         sc_result = parse_source_code_repo(result["output_folder"])
@@ -156,6 +159,7 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
             workflows.extend(parse_workflow_file(wf))
 
         forms = parse_form_files(structure.get("forms", []))
+        form_details = parse_form_files_detailed(structure.get("forms", []))
 
         # --- AX queries → feed related tables as entities ---
         ax_query_data = []
@@ -185,6 +189,54 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         sol_metadata["ax_query_count"] = len(ax_query_data)
         sol_metadata["ax_report_count"] = len(ax_report_data)
     else:
+        # ---- Parse monolithic customizations.xml if present (real CRM ZIPs) ----
+        cust_xml_path = structure.get("customizations_xml")
+        if cust_xml_path:
+            cust = parse_customizations_xml(cust_xml_path)
+            entities.extend(cust["entities"])
+            workflows.extend(cust["workflows"])
+            plugins.extend(cust["plugins"])
+            forms.extend(cust["forms"])
+            form_details.extend(cust["form_details"])
+            roles.extend(cust.get("roles", []))
+
+            # Merge XAML workflow steps into matching workflow objects
+            xaml_map: dict[str, str] = cust.get("workflow_xaml_map", {})
+            solution_folder = result["output_folder"]
+            for wf_obj in workflows:
+                rel_xaml = xaml_map.get(wf_obj.name)
+                if not rel_xaml:
+                    continue
+                xaml_path = os.path.join(solution_folder, rel_xaml)
+                if not os.path.isfile(xaml_path):
+                    # Try normalised separators
+                    xaml_path = os.path.join(solution_folder, rel_xaml.replace("/", os.sep))
+                if os.path.isfile(xaml_path):
+                    xaml_steps, xaml_conds = parse_xaml_workflow_file(xaml_path)
+                    if xaml_steps:
+                        wf_obj.steps = xaml_steps
+                    if xaml_conds:
+                        wf_obj.conditions = xaml_conds
+
+        # ---- Parse standalone XAML workflow files not yet matched ----
+        matched_xaml_paths = set()
+        if cust_xml_path:
+            for rel in cust.get("workflow_xaml_map", {}).values():
+                matched_xaml_paths.add(os.path.normpath(os.path.join(result["output_folder"], rel)))
+                matched_xaml_paths.add(os.path.normpath(os.path.join(result["output_folder"], rel.replace("/", os.sep))))
+
+        for xaml_path in structure.get("xaml_workflows", []):
+            if os.path.normpath(xaml_path) in matched_xaml_paths:
+                continue
+            xaml_steps, xaml_conds = parse_xaml_workflow_file(xaml_path)
+            wf_name = os.path.splitext(os.path.basename(xaml_path))[0]
+            workflows.append(Workflow(
+                name=wf_name,
+                steps=xaml_steps,
+                conditions=xaml_conds,
+            ))
+
+        # ---- Parse individual XML files (folder-based structure) ----
         for ef in structure.get("entities", []):
             entities.extend(parse_entity_file(ef))
 
@@ -194,8 +246,9 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         for pf in structure.get("plugins", []):
             plugins.extend(parse_plugin_file(pf))
 
-        forms = parse_form_files(structure.get("forms", []))
-        roles = parse_role_files(structure.get("roles", []))
+        forms.extend(parse_form_files(structure.get("forms", [])))
+        form_details.extend(parse_form_files_detailed(structure.get("forms", [])))
+        roles.extend(parse_role_files(structure.get("roles", [])))
         webresources = parse_webresource_files(structure.get("webresources", []))
 
     # --- Parse unclassified XML (other_xml) through fallback parser ---
@@ -206,7 +259,7 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         workflows.extend(extra_workflows)
         plugins.extend(extra_plugins)
 
-    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources)
+    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources, form_details)
     functional_flows = generate_functional_flows(knowledge_graph)
 
     sol_data = {

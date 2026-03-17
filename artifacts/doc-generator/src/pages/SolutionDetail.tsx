@@ -40,6 +40,7 @@ const ALL_DOC_SECTIONS = [
   { key: "solution_inventory", label: "Solution Inventory", order: 13, group: "Reference" },
   { key: "environment_config", label: "Environment Config", order: 14, group: "Reference" },
   { key: "change_log", label: "Change Log", order: 15, group: "Reference" },
+  { key: "solution_flow_diagram", label: "Solution Flow Diagram", order: 16, group: "Visual" },
 ];
 
 const TABS = [

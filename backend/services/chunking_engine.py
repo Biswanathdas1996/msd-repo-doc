@@ -45,7 +45,27 @@ def create_chunks(graph: KnowledgeGraph, section_key: str | None = None) -> list
             "type": "entity_detail",
             "entity": ename,
             "fields": edata.fields,
+            "field_details": [
+                {
+                    "name": fd.name,
+                    "type": fd.type,
+                    "displayName": fd.displayName,
+                    "required": fd.required
+                }
+                for fd in edata.fieldDetails
+            ] if edata.fieldDetails else [],
             "forms": edata.forms,
+            "form_details": [
+                {
+                    "name": fdet.name,
+                    "entity": fdet.entity,
+                    "tabs": fdet.tabs,
+                    "sections": fdet.sections,
+                    "controls": fdet.controls,
+                    "sourceFile": fdet.sourceFile
+                }
+                for fdet in edata.formDetails
+            ] if edata.formDetails else [],
             "related_workflows": edata.workflows,
             "related_plugins": edata.plugins
         }
@@ -57,7 +77,10 @@ def create_chunks(graph: KnowledgeGraph, section_key: str | None = None) -> list
             "workflow": wname,
             "trigger": wdata.trigger,
             "trigger_entity": wdata.triggerEntity,
+            "mode": wdata.mode,
+            "scope": wdata.scope,
             "steps": wdata.steps,
+            "conditions": wdata.conditions,
             "plugins": wdata.plugins
         }
         chunks.append(chunk)
@@ -68,7 +91,12 @@ def create_chunks(graph: KnowledgeGraph, section_key: str | None = None) -> list
             "plugin": pname,
             "trigger_entity": pdata.triggerEntity,
             "operation": pdata.operation,
-            "stage": pdata.stage
+            "stage": pdata.stage,
+            "execution_mode": pdata.executionMode,
+            "execution_order": pdata.executionOrder,
+            "filtering_attributes": pdata.filteringAttributes,
+            "assembly_name": pdata.assemblyName,
+            "description": pdata.description
         }
         chunks.append(chunk)
 

@@ -2,7 +2,8 @@ from backend.models.schemas import (
     Entity, Workflow, Plugin, Role, WebResource, KnowledgeGraph,
     KnowledgeGraphEntity, KnowledgeGraphWorkflow,
     KnowledgeGraphPlugin, KnowledgeGraphRole,
-    KnowledgeGraphWebResource, Relationship
+    KnowledgeGraphWebResource, KnowledgeGraphFieldDetail,
+    FormDetail, Relationship
 )
 
 
@@ -12,10 +13,12 @@ def build_knowledge_graph(
     plugins: list[Plugin],
     forms: list[str],
     roles: list[Role] | None = None,
-    webresources: list[WebResource] | None = None
+    webresources: list[WebResource] | None = None,
+    form_details: list[FormDetail] | None = None
 ) -> KnowledgeGraph:
     roles = roles or []
     webresources = webresources or []
+    form_details = form_details or []
 
     kg_entities: dict[str, KnowledgeGraphEntity] = {}
     kg_workflows: dict[str, KnowledgeGraphWorkflow] = {}
@@ -29,6 +32,15 @@ def build_knowledge_graph(
     for entity in entities:
         kg_entities[entity.name] = KnowledgeGraphEntity(
             fields=[f.name for f in entity.fields],
+            fieldDetails=[
+                KnowledgeGraphFieldDetail(
+                    name=f.name,
+                    type=f.type,
+                    displayName=f.displayName,
+                    required=f.required
+                )
+                for f in entity.fields
+            ],
             forms=entity.forms[:],
             workflows=[],
             plugins=[]
@@ -38,7 +50,10 @@ def build_knowledge_graph(
         kg_workflows[wf.name] = KnowledgeGraphWorkflow(
             trigger=wf.trigger,
             triggerEntity=wf.triggerEntity,
+            mode=wf.mode,
+            scope=wf.scope,
             steps=wf.steps,
+            conditions=wf.conditions,
             plugins=wf.plugins[:],
             relatedEntities=wf.relatedEntities[:]
         )
@@ -78,7 +93,12 @@ def build_knowledge_graph(
         kg_plugins[plugin.name] = KnowledgeGraphPlugin(
             triggerEntity=plugin.triggerEntity,
             operation=plugin.operation,
-            stage=plugin.stage
+            stage=plugin.stage,
+            executionMode=plugin.executionMode,
+            executionOrder=plugin.executionOrder,
+            filteringAttributes=plugin.filteringAttributes,
+            assemblyName=plugin.assemblyName,
+            description=plugin.description
         )
 
         if plugin.triggerEntity and plugin.triggerEntity.lower() in entity_names:
@@ -113,6 +133,22 @@ def build_knowledge_graph(
                     target=form_name,
                     type="has_form"
                 ))
+
+    # --- Detailed form linking ---
+    for fd in form_details:
+        matched_entity = None
+        # Try explicit entity field first
+        if fd.entity and fd.entity.lower() in entity_names:
+            matched_entity = entity_names[fd.entity.lower()]
+        # Try matching by name
+        if not matched_entity:
+            for ename_lower, ename_resolved in entity_names.items():
+                if ename_lower in fd.name.lower():
+                    matched_entity = ename_resolved
+                    break
+        if matched_entity and matched_entity in kg_entities:
+            if fd not in kg_entities[matched_entity].formDetails:
+                kg_entities[matched_entity].formDetails.append(fd)
 
     # --- Roles / Security ---
     for role in roles:
