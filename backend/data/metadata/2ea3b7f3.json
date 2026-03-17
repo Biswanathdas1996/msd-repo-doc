@@ -1,0 +1,1114 @@
+{
+  "id": "2ea3b7f3",
+  "name": "dynamics-custom-emails-master",
+  "uploadedAt": "2026-03-17T16:41:02.841699+00:00",
+  "status": "ready",
+  "entityCount": 8,
+  "workflowCount": 7,
+  "pluginCount": 0,
+  "formCount": 0,
+  "roleCount": 0,
+  "webResourceCount": 0,
+  "hasDocumentation": true,
+  "metadata": {
+    "type": "source_code",
+    "source_files": 72,
+    "projects": 5,
+    "project_info": {
+      "DXTools.CRM.Solutions.CustomEmails.Common.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.Common",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.Common",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.CSharp"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.CrmPackage.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.DXTools.CRM.Solutions.CustomEmails.CrmPackage",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.DXTools.CRM.Solutions.CustomEmails.CrmPackage",
+        "TargetFrameworkVersion": "v4.5.2"
+      },
+      "DXTools.CRM.Solutions.CustomEmails.IntegrationTests.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.IntegrationTests",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.IntegrationTests",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Client",
+          "Microsoft.Xrm.Client.CodeGeneration",
+          "Microsoft.Xrm.Portal",
+          "Microsoft.Xrm.Portal.Files",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Deployment",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.CodedUITestFramework",
+          "Microsoft.VisualStudio.TestTools.UITest.Common",
+          "Microsoft.VisualStudio.TestTools.UITest.Extension",
+          "Microsoft.VisualStudio.TestTools.UITesting"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.UnitTests.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.UnitTests",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.UnitTests",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.QualityTools.Testing.Fakes",
+          "Microsoft.ServiceBus",
+          "Microsoft.WindowsAzure.Configuration",
+          "Microsoft.Xrm.Client",
+          "Microsoft.Xrm.Client.CodeGeneration",
+          "Microsoft.Xrm.Portal",
+          "Microsoft.Xrm.Portal.Files",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.8.0.0.0.Fakes",
+          "Microsoft.Xrm.Sdk.Deployment",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.Xrm.Sdk.Workflow.8.0.0.0.Fakes",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.CodedUITestFramework",
+          "Microsoft.VisualStudio.TestTools.UITest.Common",
+          "Microsoft.VisualStudio.TestTools.UITest.Extension",
+          "Microsoft.VisualStudio.TestTools.UITesting"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.Workflows.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.Workflows",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.Workflows",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.CSharp"
+        ]
+      }
+    }
+  },
+  "entities": [
+    {
+      "name": "attachment",
+      "displayName": "Attachment",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "email",
+      "displayName": "Email",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "activityparty",
+      "displayName": "Activityparty",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "template",
+      "displayName": "Template",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "activitymimeattachment",
+      "displayName": "Activitymimeattachment",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "queue",
+      "displayName": "Queue",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "systemuser",
+      "displayName": "Systemuser",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "Newtonsoft.Json",
+      "displayName": null,
+      "fields": [
+        {
+          "name": "assembly",
+          "type": "element",
+          "displayName": "assembly",
+          "required": false,
+          "description": null,
+          "maxLength": null,
+          "options": null
+        },
+        {
+          "name": "members",
+          "type": "element",
+          "displayName": "members",
+          "required": false,
+          "description": null,
+          "maxLength": null,
+          "options": null
+        }
+      ],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Create Custom Email Activity",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Send Email Activity",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Get Process Properties",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Does Attachment Exist",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Base Code",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Custom workflow activity: BaseCodeActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": []
+    },
+    {
+      "name": "Create Custom Email",
+      "triggerEntity": "queue",
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "queue",
+        "systemuser"
+      ]
+    },
+    {
+      "name": "Send Email",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "mode": null,
+      "scope": null,
+      "steps": [
+        "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": []
+    }
+  ],
+  "plugins": [],
+  "forms": [],
+  "roles": [],
+  "webresources": [],
+  "knowledge_graph": {
+    "entities": {
+      "attachment": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "email": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "activityparty": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "template": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "activitymimeattachment": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "queue": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist",
+          "Create Custom Email"
+        ],
+        "plugins": []
+      },
+      "systemuser": {
+        "fields": [],
+        "fieldDetails": [],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist",
+          "Create Custom Email"
+        ],
+        "plugins": []
+      },
+      "Newtonsoft.Json": {
+        "fields": [
+          "assembly",
+          "members"
+        ],
+        "fieldDetails": [
+          {
+            "name": "assembly",
+            "type": "element",
+            "displayName": "assembly",
+            "required": false
+          },
+          {
+            "name": "members",
+            "type": "element",
+            "displayName": "members",
+            "required": false
+          }
+        ],
+        "forms": [],
+        "formDetails": [],
+        "workflows": [],
+        "plugins": []
+      }
+    },
+    "workflows": {
+      "Create Custom Email Activity": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Create an email based on custom template",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Send Email Activity": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Send an existing email",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Get Process Properties": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Send an existing email",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Does Attachment Exist": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Check if the given filenames exist as CRM email template attachments",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Base Code": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Custom workflow activity: BaseCodeActivity"
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": []
+      },
+      "Create Custom Email": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": "queue",
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": [
+          "queue",
+          "systemuser"
+        ]
+      },
+      "Send Email": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "mode": null,
+        "scope": null,
+        "steps": [
+          "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+        ],
+        "conditions": [],
+        "plugins": [],
+        "relatedEntities": []
+      }
+    },
+    "plugins": {},
+    "roles": {},
+    "webResources": {},
+    "relationships": [
+      {
+        "source": "activitymimeattachment",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Create Custom Email",
+        "type": "triggers"
+      },
+      {
+        "source": "systemuser",
+        "target": "Create Custom Email",
+        "type": "used_in"
+      }
+    ]
+  },
+  "functional_flows": [
+    {
+      "entity": "attachment",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When attachment is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When attachment is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When attachment is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When attachment is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When email is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When email is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When email is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When email is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When activityparty is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When activityparty is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When activityparty is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When activityparty is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When template is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When template is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When template is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When template is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When queue is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When queue is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When queue is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When queue is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Create Custom Email",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Create Custom Email triggered",
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "description": "When queue is modified, Create Custom Email is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When systemuser is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When systemuser is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When systemuser is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When systemuser is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Create Custom Email",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Create Custom Email triggered",
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "description": "When systemuser is modified, Create Custom Email is triggered"
+    },
+    {
+      "entity": "System",
+      "workflow": "Base Code",
+      "plugins": [],
+      "steps": [
+        "Base Code triggered",
+        "Custom workflow activity: BaseCodeActivity"
+      ],
+      "description": "Workflow Base Code processes System operations"
+    },
+    {
+      "entity": "System",
+      "workflow": "Send Email",
+      "plugins": [],
+      "steps": [
+        "Send Email triggered",
+        "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+      ],
+      "description": "Workflow Send Email processes System operations"
+    }
+  ],
+  "docs": {
+    "solutionId": "2ea3b7f3",
+    "generatedAt": "2026-03-17T16:41:27.528075+00:00",
+    "sections": [
+      {
+        "title": "Solution Flow Diagram",
+        "slug": "solution_flow_diagram",
+        "content": "```mermaid\nflowchart TD\n    subgraph ent_attachment [\"Entity: attachment\"]\n    end\n\n    subgraph ent_email [\"Entity: email\"]\n    end\n\n    subgraph ent_activityparty [\"Entity: activityparty\"]\n    end\n\n    subgraph ent_template [\"Entity: template\"]\n    end\n\n    subgraph ent_activitymimeattachment [\"Entity: activitymimeattachment\"]\n    end\n\n    subgraph ent_queue [\"Entity: queue\"]\n    end\n\n    subgraph ent_systemuser [\"Entity: systemuser\"]\n    end\n\n    subgraph ent_newtonsoft_json [\"Entity: Newtonsoft.Json\"]\n        fld_newtonsoft_json_assembly[\"Field: assembly (element)\"]\n        fld_newtonsoft_json_members[\"Field: members (element)\"]\n    end\n\n    wf_create_custom_email_activity[\"Workflow: Create Custom Email Activity (Custom Workflow Activity)\"]\n    wf_send_email_activity[\"Workflow: Send Email Activity (Custom Workflow Activity)\"]\n    wf_get_process_properties[\"Workflow: Get Process Properties (Custom Workflow Activity)\"]\n    wf_does_attachment_exist[\"Workflow: Does Attachment Exist (Custom Workflow Activity)\"]\n    wf_base_code[\"Workflow: Base Code (Custom Workflow Activity)\"]\n    wf_create_custom_email[\"Workflow: Create Custom Email (Custom Workflow Activity)\"]\n    wf_send_email[\"Workflow: Send Email (Custom Workflow Activity)\"]\n\n    ent_attachment -->|used in| wf_create_custom_email_activity\n    ent_activityparty -->|used in| wf_create_custom_email_activity\n    ent_email -->|used in| wf_create_custom_email_activity\n    ent_queue -->|used in| wf_create_custom_email_activity\n    ent_systemuser -->|used in| wf_create_custom_email_activity\n    ent_template -->|used in| wf_create_custom_email_activity\n    ent_activitymimeattachment -->|used in| wf_create_custom_email_activity\n\n    ent_attachment -->|used in| wf_send_email_activity\n    ent_activityparty -->|used in| wf_send_email_activity\n    ent_email -->|used in| wf_send_email_activity\n    ent_queue -->|used in| wf_send_email_activity\n    ent_systemuser -->|used in| wf_send_email_activity\n    ent_template -->|used in| wf_send_email_activity\n    ent_activitymimeattachment -->|used in| wf_send_email_activity\n\n    ent_attachment -->|used in| wf_get_process_properties\n    ent_activityparty -->|used in| wf_get_process_properties\n    ent_email -->|used in| wf_get_process_properties\n    ent_queue -->|used in| wf_get_process_properties\n    ent_systemuser -->|used in| wf_get_process_properties\n    ent_template -->|used in| wf_get_process_properties\n    ent_activitymimeattachment -->|used in| wf_get_process_properties\n\n    ent_attachment -->|used in| wf_does_attachment_exist\n    ent_activityparty -->|used in| wf_does_attachment_exist\n    ent_email -->|used in| wf_does_attachment_exist\n    ent_queue -->|used in| wf_does_attachment_exist\n    ent_systemuser -->|used in| wf_does_attachment_exist\n    ent_template -->|used in| wf_does_attachment_exist\n    ent_activitymimeattachment -->|used in| wf_does_attachment_exist\n\n    ent_queue -->|triggers| wf_create_custom_email\n    ent_systemuser -->|used in| wf_create_custom_email\n```",
+        "order": 16
+      }
+    ],
+    "verified": false
+  },
+  "output_folder": "C:\\Users\\daspa\\Desktop\\Knowledge-Graph-Docs\\backend\\data\\solutions\\2ea3b7f3"
+}
