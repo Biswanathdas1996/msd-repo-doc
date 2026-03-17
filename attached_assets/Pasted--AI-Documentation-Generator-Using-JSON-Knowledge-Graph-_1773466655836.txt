@@ -1,0 +1,406 @@
+
+AI Documentation Generator Using JSON Knowledge Graph
+
+## Overall Architecture
+
+
+Dynamics Solution ZIP
+        ↓
+Solution Extraction
+        ↓
+XML Parser Layer
+        ↓
+JSON Knowledge Graph Builder
+        ↓
+Embedding + Vector Store (RAG)
+        ↓
+AI Reasoning Layer
+        ↓
+Documentation Generator
+        ↓
+Markdown / Confluence / PDF
+
+
+# 1. Solution Extraction
+
+First extract the Dynamics solution package.
+
+```python
+import zipfile
+import os
+
+def extract_solution(zip_file, output_folder):
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(output_folder)
+
+extract_solution("solution.zip", "solution_files")
+```
+
+Typical structure:
+
+
+solution_files/
+ ├ entities/
+ ├ workflows/
+ ├ plugins/
+ ├ forms/
+ ├ webresources/
+ ├ roles/
+ └ solution.xml
+
+
+# 2. XML Parsing Layer
+
+Convert **XML → structured metadata**.
+
+Do NOT send XML directly to AI.
+
+Example parser:
+
+
+import xml.etree.ElementTree as ET
+
+def parse_entity(file_path):
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    entity_name = root.attrib.get("Name")
+
+    fields = []
+    for attr in root.findall(".//attribute"):
+        fields.append({
+            "name": attr.attrib.get("Name"),
+            "type": attr.attrib.get("Type")
+        })
+
+    return {
+        "entity": entity_name,
+        "fields": fields
+    }
+
+
+Store intermediate metadata.
+
+
+metadata/
+  entities.json
+  workflows.json
+  plugins.json
+  forms.json
+
+
+# 3. JSON Knowledge Graph Builder
+
+Instead of Neo4j, create a **structured relationship graph in JSON**.
+
+Example:
+
+```json
+{
+  "entities": {
+    "Account": {
+      "fields": ["name", "email", "status"],
+      "forms": ["Account Main Form"],
+      "workflows": ["Account Approval Workflow"],
+      "plugins": ["AccountUpdatePlugin"]
+    },
+    "Contact": {
+      "fields": ["firstname", "lastname", "phone"]
+    }
+  },
+
+  "workflows": {
+    "Account Approval Workflow": {
+      "trigger": "Account update",
+      "steps": [
+        "Validate data",
+        "Call plugin",
+        "Send notification"
+      ],
+      "plugins": ["AccountUpdatePlugin"]
+    }
+  },
+
+  "plugins": {
+    "AccountUpdatePlugin": {
+      "trigger_entity": "Account",
+      "operation": "Update validation"
+    }
+  }
+}
+```
+
+This becomes the **central knowledge model**.
+
+File:
+
+```text
+knowledge_graph.json
+```
+
+---
+
+# 4. Relationship Resolver
+
+Create relationships automatically.
+
+Example:
+
+```python
+def build_relationships(metadata):
+    graph = {}
+
+    for entity in metadata["entities"]:
+        graph[entity] = {
+            "workflows": [],
+            "forms": [],
+            "plugins": []
+        }
+
+    return graph
+```
+
+Example relationship:
+
+```text
+Account
+   ↓
+Account Approval Workflow
+   ↓
+AccountUpdatePlugin
+```
+
+---
+
+# 5. Functional Flow Generator
+
+Use simple traversal of the JSON graph.
+
+Example:
+
+```python
+def generate_functional_flow(graph, entity):
+
+    flows = []
+
+    workflows = graph["entities"][entity].get("workflows", [])
+
+    for workflow in workflows:
+        flow = {
+            "entity": entity,
+            "workflow": workflow,
+            "plugins": graph["workflows"][workflow]["plugins"]
+        }
+
+        flows.append(flow)
+
+    return flows
+```
+
+Example output:
+
+```text
+User updates Account
+   ↓
+Account Approval Workflow triggered
+   ↓
+AccountUpdatePlugin executed
+   ↓
+Notification sent
+```
+
+---
+
+# 6. Chunking Engine for AI
+
+Convert knowledge graph into chunks.
+
+Example chunk:
+
+```json
+{
+  "module": "Account Management",
+  "entities": ["Account", "Contact"],
+  "workflows": ["Account Approval Workflow"],
+  "plugins": ["AccountUpdatePlugin"]
+}
+```
+
+Chunking improves LLM accuracy.
+
+---
+
+# 7. RAG Layer (Optional but Recommended)
+
+Store chunks in a **vector database**.
+
+Recommended:
+
+Mongo DB atals
+MONGODB_URI=mongodb+srv://Papun1996:m4aVPHHbNMyQv24S@bd.9ungu.mongodb.net/?appName=bd
+
+
+
+Embedding example:
+
+```python
+pwc gen ai servides with vertex_ai.text-embedding-005  768-dim vectors
+
+PWC_GENAI_ENDPOINT_URL=https://genai-sharedservice-americas.pwc.com/completions
+PWC_GENAI_API_KEY=sk-n2R7Rm00nd_A4uB4rWhcfQ
+PWC_GENAI_BEARER_TOKEN=sk-n2R7Rm00nd_A4uB4rWhcfQ
+```
+
+Store embedding with metadata.
+
+---
+
+# 8. AI Reasoning Layer
+
+Feed the **knowledge graph + metadata chunks** to AI.
+
+Prompt example:
+
+```text
+You are a Microsoft Dynamics Architect.
+
+Based on the provided solution metadata and relationships,
+generate enterprise documentation containing:
+
+1. Solution overview
+2. Features
+3. Functional modules
+4. Technical architecture
+5. Functional flows
+6. Integration points
+
+Only use the provided metadata.
+Return structured markdown documentation.
+```
+
+---
+
+# 9. Documentation Generator
+
+Generate structured output.
+
+Folder structure:
+
+```text
+docs/
+ ├ overview.md
+ ├ features.md
+ ├ architecture.md
+ ├ entities.md
+ ├ workflows.md
+ ├ functional_flow.md
+```
+
+Example output:
+
+```text
+# Solution Overview
+
+The Dynamics solution implements a customer onboarding system.
+
+# Features
+
+1. Account management
+2. Approval workflows
+3. Automated notifications
+
+# Functional Flow
+
+User creates account
+   ↓
+Approval workflow triggered
+   ↓
+Plugin validates data
+   ↓
+Notification sent
+```
+
+---
+
+# 10. Enterprise Accuracy Improvements
+
+To achieve **90%+ accuracy**:
+
+### Multi-pass analysis
+
+```text
+Pass 1 → Parse XML
+Pass 2 → Build knowledge graph
+Pass 3 → Identify modules
+Pass 4 → Generate functional flows
+Pass 5 → Generate documentation
+Pass 6 → AI verification pass
+```
+
+### Validation step
+
+Run a second LLM check:
+
+```text
+Verify the generated documentation against the knowledge graph.
+Highlight inconsistencies.
+```
+
+---
+
+# Recommended Tech Stack
+
+| Layer           | Technology        |
+| --------------- | ----------------- |
+| Parser          | Python            |
+| XML parsing     | lxml              |
+| Knowledge Graph | JSON              |
+| Flow engine     | Python            |
+| Vector DB       | mongo DB atlas |
+| LLM             | PWC GEN ai      |
+| API             | FastAPI           |
+| Frontend        | React             |
+| Deployment      | Azure             |
+
+---
+
+# Final Architecture
+
+```text
+Dynamics Solution ZIP
+        ↓
+XML Parser
+        ↓
+Metadata JSON
+        ↓
+JSON Knowledge Graph
+        ↓
+Chunking Engine
+        ↓
+Vector DB (optional)
+        ↓
+LLM Reasoning
+        ↓
+Documentation Generator
+```
+
+---
+
+✅ **Advantages of JSON Knowledge Graph**
+
+* No database needed
+* Easy debugging
+* Works very well with AI prompts
+* Easy to version in Git
+* Enterprise scalable
+
+---
+
+If you want, I can also show you **an advanced upgrade of this system** where the AI automatically generates:
+
+* **Architecture diagrams**
+* **Sequence diagrams**
+* **Functional flow charts**
+* **Entity relationship diagrams**
+
+directly from the **JSON Knowledge Graph + Dynamics solution**.

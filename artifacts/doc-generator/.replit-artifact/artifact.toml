@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AI Documentation Generator"
+version = "1.0.0"
+id = "artifacts/doc-generator"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 20615
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/doc-generator run dev"
+
+[services.env]
+PORT = "20615"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/doc-generator", "run", "build"]
+publicDir = "artifacts/doc-generator/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

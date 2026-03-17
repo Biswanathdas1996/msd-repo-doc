@@ -1,0 +1,21 @@
+packages:
+  "@xyflow/react": "Interactive node-based knowledge graph visualization"
+  "dagre": "Directed graph layout engine for automatically positioning knowledge graph nodes"
+  "@types/dagre": "Type definitions for dagre"
+  "react-markdown": "Rendering generated markdown documentation"
+  "remark-gfm": "GitHub Flavored Markdown support for tables and formatting"
+  "react-syntax-highlighter": "Code block syntax highlighting in documentation"
+  "@types/react-syntax-highlighter": "Type definitions for syntax highlighter"
+  "framer-motion": "Smooth UI animations and page transitions"
+  "date-fns": "Human-readable date formatting for uploaded solutions"
+  "lucide-react": "Beautiful SVG icons for the UI"
+
+images:
+  - path: "artifacts/doc-generator/public/images/auth-bg.png"
+    description: "Abstract dark enterprise technology background with subtle geometric lines and deep blue/teal gradients, professional and clean"
+    aspect_ratio: "16:9"
+
+notes:
+  - Backend is a Python FastAPI server at /py-api
+  - The application is forced into a professional dark mode aesthetic
+  - API client hooks are imported from @workspace/api-client-react

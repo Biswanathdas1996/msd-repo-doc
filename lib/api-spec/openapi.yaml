@@ -1,0 +1,731 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: AI Documentation Generator API
+servers:
+  - url: /py-api
+    description: Python FastAPI backend
+tags:
+  - name: health
+    description: Health operations
+  - name: solutions
+    description: Solution management operations
+  - name: documentation
+    description: Documentation generation operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /solutions/upload:
+    post:
+      operationId: uploadSolution
+      tags: [solutions]
+      summary: Upload a Dynamics solution ZIP file
+      description: Upload and process a Dynamics solution ZIP file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The solution ZIP file
+                name:
+                  type: string
+                  description: Optional display name for the solution
+              required:
+                - file
+      responses:
+        "200":
+          description: Solution uploaded and processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Solution"
+        "400":
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/import-github:
+    post:
+      operationId: importFromGithub
+      tags: [solutions]
+      summary: Import a Dynamics solution from a GitHub repository
+      description: Download and process a Dynamics solution from a public GitHub repository URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GitHubImportRequest"
+      responses:
+        "200":
+          description: Solution imported and processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Solution"
+        "400":
+          description: Invalid URL or download failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions:
+    get:
+      operationId: listSolutions
+      tags: [solutions]
+      summary: List all uploaded solutions
+      responses:
+        "200":
+          description: List of solutions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SolutionSummary"
+  /solutions/{id}:
+    get:
+      operationId: getSolution
+      tags: [solutions]
+      summary: Get solution details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Solution details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Solution"
+        "404":
+          description: Solution not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteSolution
+      tags: [solutions]
+      summary: Delete a solution
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Solution deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Solution not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/knowledge-graph:
+    get:
+      operationId: getKnowledgeGraph
+      tags: [solutions]
+      summary: Get the JSON knowledge graph
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Knowledge graph data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeGraph"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/entities:
+    get:
+      operationId: getEntities
+      tags: [solutions]
+      summary: Get parsed entities
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Entity"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/workflows:
+    get:
+      operationId: getWorkflows
+      tags: [solutions]
+      summary: Get parsed workflows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workflow"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/plugins:
+    get:
+      operationId: getPlugins
+      tags: [solutions]
+      summary: Get parsed plugins
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plugin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plugin"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/functional-flows:
+    get:
+      operationId: getFunctionalFlows
+      tags: [solutions]
+      summary: Get functional flows
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Functional flows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FunctionalFlow"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/generate-docs:
+    post:
+      operationId: generateDocs
+      tags: [documentation]
+      summary: Generate AI documentation
+      description: Generate structured documentation using AI reasoning
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateDocsRequest"
+      responses:
+        "200":
+          description: Documentation generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedDocs"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/docs:
+    get:
+      operationId: getDocs
+      tags: [documentation]
+      summary: Get generated documentation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Generated documentation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedDocs"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /solutions/{id}/verify:
+    post:
+      operationId: verifyDocs
+      tags: [documentation]
+      summary: Verify generated documentation against knowledge graph
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verification results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    SolutionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        uploadedAt:
+          type: string
+        entityCount:
+          type: integer
+        workflowCount:
+          type: integer
+        pluginCount:
+          type: integer
+        hasDocumentation:
+          type: boolean
+        status:
+          type: string
+          enum: [processing, ready, error]
+      required:
+        - id
+        - name
+        - uploadedAt
+        - entityCount
+        - workflowCount
+        - pluginCount
+        - hasDocumentation
+        - status
+    Solution:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        uploadedAt:
+          type: string
+        status:
+          type: string
+          enum: [processing, ready, error]
+        entityCount:
+          type: integer
+        workflowCount:
+          type: integer
+        pluginCount:
+          type: integer
+        formCount:
+          type: integer
+        roleCount:
+          type: integer
+        webResourceCount:
+          type: integer
+        hasDocumentation:
+          type: boolean
+        metadata:
+          $ref: "#/components/schemas/SolutionMetadata"
+      required:
+        - id
+        - name
+        - uploadedAt
+        - status
+        - entityCount
+        - workflowCount
+        - pluginCount
+        - formCount
+        - roleCount
+        - webResourceCount
+        - hasDocumentation
+    SolutionMetadata:
+      type: object
+      properties:
+        solutionVersion:
+          type: ["string", "null"]
+        publisher:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+    Entity:
+      type: object
+      properties:
+        name:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityField"
+        forms:
+          type: array
+          items:
+            type: string
+        workflows:
+          type: array
+          items:
+            type: string
+        plugins:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - fields
+    EntityField:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        required:
+          type: boolean
+      required:
+        - name
+        - type
+    Workflow:
+      type: object
+      properties:
+        name:
+          type: string
+        triggerEntity:
+          type: ["string", "null"]
+        trigger:
+          type: ["string", "null"]
+        steps:
+          type: array
+          items:
+            type: string
+        plugins:
+          type: array
+          items:
+            type: string
+        conditions:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - steps
+    Plugin:
+      type: object
+      properties:
+        name:
+          type: string
+        triggerEntity:
+          type: ["string", "null"]
+        operation:
+          type: ["string", "null"]
+        stage:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+      required:
+        - name
+    FunctionalFlow:
+      type: object
+      properties:
+        entity:
+          type: string
+        workflow:
+          type: string
+        plugins:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          items:
+            type: string
+        description:
+          type: ["string", "null"]
+      required:
+        - entity
+        - workflow
+        - plugins
+        - steps
+    KnowledgeGraph:
+      type: object
+      properties:
+        entities:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/KnowledgeGraphEntity"
+        workflows:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/KnowledgeGraphWorkflow"
+        plugins:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/KnowledgeGraphPlugin"
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/Relationship"
+      required:
+        - entities
+        - workflows
+        - plugins
+        - relationships
+    KnowledgeGraphEntity:
+      type: object
+      properties:
+        fields:
+          type: array
+          items:
+            type: string
+        forms:
+          type: array
+          items:
+            type: string
+        workflows:
+          type: array
+          items:
+            type: string
+        plugins:
+          type: array
+          items:
+            type: string
+      required:
+        - fields
+    KnowledgeGraphWorkflow:
+      type: object
+      properties:
+        trigger:
+          type: ["string", "null"]
+        triggerEntity:
+          type: ["string", "null"]
+        steps:
+          type: array
+          items:
+            type: string
+        plugins:
+          type: array
+          items:
+            type: string
+      required:
+        - steps
+    KnowledgeGraphPlugin:
+      type: object
+      properties:
+        triggerEntity:
+          type: ["string", "null"]
+        operation:
+          type: ["string", "null"]
+        stage:
+          type: ["string", "null"]
+    Relationship:
+      type: object
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+        type:
+          type: string
+      required:
+        - source
+        - target
+        - type
+    GitHubImportRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          description: GitHub repository URL
+        name:
+          type: string
+          description: Optional display name for the solution
+      required:
+        - url
+    GenerateDocsRequest:
+      type: object
+      properties:
+        sections:
+          type: array
+          items:
+            type: string
+            enum: [overview, features, architecture, entities, workflows, functional_flow, integrations]
+          description: Specific sections to generate (empty for all)
+    GeneratedDocs:
+      type: object
+      properties:
+        solutionId:
+          type: string
+        generatedAt:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocSection"
+        verified:
+          type: boolean
+      required:
+        - solutionId
+        - generatedAt
+        - sections
+        - verified
+    DocSection:
+      type: object
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        content:
+          type: string
+        order:
+          type: integer
+      required:
+        - title
+        - slug
+        - content
+        - order
+    VerificationResult:
+      type: object
+      properties:
+        solutionId:
+          type: string
+        verified:
+          type: boolean
+        score:
+          type: number
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationIssue"
+        summary:
+          type: string
+      required:
+        - solutionId
+        - verified
+        - score
+        - issues
+        - summary
+    VerificationIssue:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [error, warning, info]
+        section:
+          type: string
+        message:
+          type: string
+      required:
+        - severity
+        - section
+        - message

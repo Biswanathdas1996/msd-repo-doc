@@ -1,0 +1,166 @@
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useSolutions, useDelete } from "@/hooks/use-solutions";
+import { UploadDialog } from "@/components/UploadDialog";
+import { format } from "date-fns";
+import { 
+  FileText, 
+  Database, 
+  Settings, 
+  Zap, 
+  Trash2, 
+  ChevronRight, 
+  Plus, 
+  Boxes,
+  Loader2,
+  AlertCircle,
+  FileSearch
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export default function Dashboard() {
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const { data: solutions, isLoading, error } = useSolutions();
+  const deleteMutation = useDelete();
+  const [, setLocation] = useLocation();
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm("Are you sure you want to delete this solution? All generated data will be lost.")) {
+      deleteMutation.mutate({ id });
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-display font-bold text-foreground">Solutions</h1>
+          <p className="text-muted-foreground mt-2 text-lg max-w-2xl">
+            Upload Dynamics solutions to extract knowledge graphs and generate AI documentation.
+          </p>
+        </div>
+        <Button 
+          onClick={() => setIsUploadOpen(true)}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-6 py-6 h-auto shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          <span className="font-semibold text-base">New Solution</span>
+        </Button>
+      </div>
+
+      {/* Main Content */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-card border border-border rounded-2xl h-64 animate-pulse"></div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-8 text-center">
+          <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-destructive">Failed to load solutions</h3>
+          <p className="text-destructive/80 mt-2">Please check the backend connection.</p>
+        </div>
+      ) : !solutions || solutions.length === 0 ? (
+        <div className="bg-card/50 border border-dashed border-border rounded-3xl p-16 text-center flex flex-col items-center justify-center">
+          <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-6">
+            <FileSearch className="w-10 h-10 text-muted-foreground" />
+          </div>
+          <h3 className="text-2xl font-display font-semibold text-foreground">No solutions yet</h3>
+          <p className="text-muted-foreground mt-2 max-w-md">
+            Get started by uploading a Dynamics Solution .zip file. The AI will parse it and build a knowledge graph automatically.
+          </p>
+          <Button 
+            onClick={() => setIsUploadOpen(true)}
+            variant="outline"
+            className="mt-8 rounded-xl border-primary/20 text-primary hover:bg-primary/10"
+          >
+            Upload your first solution
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {solutions.map((sol) => (
+            <div 
+              key={sol.id}
+              onClick={() => setLocation(`/solutions/${sol.id}`)}
+              className="group bg-card border border-border/60 rounded-2xl p-6 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer flex flex-col"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-teal-500/20 border border-blue-500/20 flex items-center justify-center">
+                  <Boxes className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="flex items-center gap-2">
+                  {sol.status === 'processing' && (
+                    <span className="flex items-center text-xs font-medium text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Processing
+                    </span>
+                  )}
+                  {sol.status === 'error' && (
+                    <span className="flex items-center text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20">
+                      Failed
+                    </span>
+                  )}
+                  <button 
+                    onClick={(e) => handleDelete(e, sol.id)}
+                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete Solution"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-semibold text-foreground mb-1 group-hover:text-primary transition-colors line-clamp-1">
+                {sol.name}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Uploaded {format(new Date(sol.uploadedAt), "MMM d, yyyy")}
+              </p>
+
+              <div className="grid grid-cols-3 gap-2 mb-6 mt-auto">
+                <div className="bg-muted/50 rounded-lg p-3 text-center border border-border/50">
+                  <div className="text-2xl font-display font-semibold text-foreground">{sol.entityCount}</div>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                    <Database className="w-3 h-3" /> Entities
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 text-center border border-border/50">
+                  <div className="text-2xl font-display font-semibold text-foreground">{sol.workflowCount}</div>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                    <Zap className="w-3 h-3" /> Workflows
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 text-center border border-border/50">
+                  <div className="text-2xl font-display font-semibold text-foreground">{sol.pluginCount}</div>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                    <Settings className="w-3 h-3" /> Plugins
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                <div className="flex items-center gap-2">
+                  {sol.hasDocumentation ? (
+                    <span className="flex items-center text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">
+                      <FileText className="w-3 h-3 mr-1" /> Docs Ready
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No docs generated yet</span>
+                  )}
+                </div>
+                <div className="flex items-center text-sm font-medium text-primary group-hover:translate-x-1 transition-transform">
+                  View Details <ChevronRight className="w-4 h-4 ml-1" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <UploadDialog open={isUploadOpen} onOpenChange={setIsUploadOpen} />
+    </div>
+  );
+}

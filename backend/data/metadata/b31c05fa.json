@@ -1,0 +1,1034 @@
+{
+  "id": "b31c05fa",
+  "name": "CRM",
+  "uploadedAt": "2026-03-14T07:15:41.448179+00:00",
+  "status": "ready",
+  "entityCount": 7,
+  "workflowCount": 7,
+  "pluginCount": 0,
+  "formCount": 0,
+  "roleCount": 0,
+  "webResourceCount": 0,
+  "hasDocumentation": true,
+  "metadata": {
+    "type": "source_code",
+    "source_files": 72,
+    "projects": 5,
+    "project_info": {
+      "DXTools.CRM.Solutions.CustomEmails.Common.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.Common",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.Common",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.CSharp"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.CrmPackage.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.DXTools.CRM.Solutions.CustomEmails.CrmPackage",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.DXTools.CRM.Solutions.CustomEmails.CrmPackage",
+        "TargetFrameworkVersion": "v4.5.2"
+      },
+      "DXTools.CRM.Solutions.CustomEmails.IntegrationTests.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.IntegrationTests",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.IntegrationTests",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Client",
+          "Microsoft.Xrm.Client.CodeGeneration",
+          "Microsoft.Xrm.Portal",
+          "Microsoft.Xrm.Portal.Files",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Deployment",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.CodedUITestFramework",
+          "Microsoft.VisualStudio.TestTools.UITest.Common",
+          "Microsoft.VisualStudio.TestTools.UITest.Extension",
+          "Microsoft.VisualStudio.TestTools.UITesting"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.UnitTests.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.UnitTests",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.UnitTests",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.QualityTools.Testing.Fakes",
+          "Microsoft.ServiceBus",
+          "Microsoft.WindowsAzure.Configuration",
+          "Microsoft.Xrm.Client",
+          "Microsoft.Xrm.Client.CodeGeneration",
+          "Microsoft.Xrm.Portal",
+          "Microsoft.Xrm.Portal.Files",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.8.0.0.0.Fakes",
+          "Microsoft.Xrm.Sdk.Deployment",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.Xrm.Sdk.Workflow.8.0.0.0.Fakes",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.UnitTestFramework",
+          "Microsoft.VisualStudio.QualityTools.CodedUITestFramework",
+          "Microsoft.VisualStudio.TestTools.UITest.Common",
+          "Microsoft.VisualStudio.TestTools.UITest.Extension",
+          "Microsoft.VisualStudio.TestTools.UITesting"
+        ]
+      },
+      "DXTools.CRM.Solutions.CustomEmails.Workflows.csproj": {
+        "AssemblyName": "DXTools.CRM.Solutions.CustomEmails.Workflows",
+        "RootNamespace": "DXTools.CRM.Solutions.CustomEmails.Workflows",
+        "TargetFrameworkVersion": "v4.5.2",
+        "CrmReferences": [
+          "Microsoft.Crm.Sdk.Proxy",
+          "Microsoft.IdentityModel",
+          "Microsoft.Xrm.Sdk",
+          "Microsoft.Xrm.Sdk.Workflow",
+          "Microsoft.CSharp"
+        ]
+      }
+    }
+  },
+  "entities": [
+    {
+      "name": "email",
+      "displayName": "Email",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "activityparty",
+      "displayName": "Activityparty",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "activitymimeattachment",
+      "displayName": "Activitymimeattachment",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "template",
+      "displayName": "Template",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "attachment",
+      "displayName": "Attachment",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "queue",
+      "displayName": "Queue",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "systemuser",
+      "displayName": "Systemuser",
+      "fields": [],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Create Custom Email Activity",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Send Email Activity",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Get Process Properties",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Does Attachment Exist",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "activitymimeattachment",
+        "activityparty",
+        "attachment",
+        "email",
+        "queue",
+        "systemuser",
+        "template"
+      ]
+    },
+    {
+      "name": "Base Code",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Custom workflow activity: BaseCodeActivity"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": []
+    },
+    {
+      "name": "Create Custom Email",
+      "triggerEntity": "queue",
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": [
+        "queue",
+        "systemuser"
+      ]
+    },
+    {
+      "name": "Send Email",
+      "triggerEntity": null,
+      "trigger": "Custom Workflow Activity",
+      "steps": [
+        "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": []
+    }
+  ],
+  "plugins": [],
+  "forms": [],
+  "knowledge_graph": {
+    "entities": {
+      "email": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "activityparty": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "activitymimeattachment": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "template": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "attachment": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist"
+        ],
+        "plugins": []
+      },
+      "queue": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist",
+          "Create Custom Email"
+        ],
+        "plugins": []
+      },
+      "systemuser": {
+        "fields": [],
+        "forms": [],
+        "workflows": [
+          "Create Custom Email Activity",
+          "Send Email Activity",
+          "Get Process Properties",
+          "Does Attachment Exist",
+          "Create Custom Email"
+        ],
+        "plugins": []
+      }
+    },
+    "workflows": {
+      "Create Custom Email Activity": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Create an email based on custom template",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+        ],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Send Email Activity": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Send an existing email",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+        ],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Get Process Properties": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Send an existing email",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+        ],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Does Attachment Exist": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Check if the given filenames exist as CRM email template attachments",
+          "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+        ],
+        "plugins": [],
+        "relatedEntities": [
+          "activitymimeattachment",
+          "activityparty",
+          "attachment",
+          "email",
+          "queue",
+          "systemuser",
+          "template"
+        ]
+      },
+      "Base Code": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Custom workflow activity: BaseCodeActivity"
+        ],
+        "plugins": [],
+        "relatedEntities": []
+      },
+      "Create Custom Email": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": "queue",
+        "steps": [
+          "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+        ],
+        "plugins": [],
+        "relatedEntities": [
+          "queue",
+          "systemuser"
+        ]
+      },
+      "Send Email": {
+        "trigger": "Custom Workflow Activity",
+        "triggerEntity": null,
+        "steps": [
+          "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+        ],
+        "plugins": [],
+        "relatedEntities": []
+      }
+    },
+    "plugins": {},
+    "relationships": [
+      {
+        "source": "activitymimeattachment",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Create Custom Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Send Email Activity",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Get Process Properties",
+        "type": "used_in"
+      },
+      {
+        "source": "activitymimeattachment",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "activityparty",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "attachment",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "email",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "systemuser",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "template",
+        "target": "Does Attachment Exist",
+        "type": "used_in"
+      },
+      {
+        "source": "queue",
+        "target": "Create Custom Email",
+        "type": "triggers"
+      },
+      {
+        "source": "systemuser",
+        "target": "Create Custom Email",
+        "type": "used_in"
+      }
+    ]
+  },
+  "functional_flows": [
+    {
+      "entity": "email",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When email is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When email is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When email is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "email",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on email",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When email is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When activityparty is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When activityparty is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When activityparty is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "activityparty",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activityparty",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When activityparty is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "activitymimeattachment",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on activitymimeattachment",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When activitymimeattachment is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When template is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When template is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When template is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "template",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on template",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When template is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When attachment is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When attachment is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When attachment is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "attachment",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on attachment",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When attachment is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When queue is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When queue is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When queue is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When queue is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "queue",
+      "workflow": "Create Custom Email",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on queue",
+        "Create Custom Email triggered",
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "description": "When queue is modified, Create Custom Email is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Create Custom Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Create Custom Email Activity triggered",
+        "Create an email based on custom template",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity"
+      ],
+      "description": "When systemuser is modified, Create Custom Email Activity is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Send Email Activity",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Send Email Activity triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity"
+      ],
+      "description": "When systemuser is modified, Send Email Activity is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Get Process Properties",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Get Process Properties triggered",
+        "Send an existing email",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity"
+      ],
+      "description": "When systemuser is modified, Get Process Properties is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Does Attachment Exist",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Does Attachment Exist triggered",
+        "Check if the given filenames exist as CRM email template attachments",
+        "Implementation: DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity"
+      ],
+      "description": "When systemuser is modified, Does Attachment Exist is triggered"
+    },
+    {
+      "entity": "systemuser",
+      "workflow": "Create Custom Email",
+      "plugins": [],
+      "steps": [
+        "User performs Custom Workflow Activity on systemuser",
+        "Create Custom Email triggered",
+        "Create a custom CRM email record based on the input parameters.  Optionally, the email can be sent instantly depending on \"SendInstantly\" property."
+      ],
+      "description": "When systemuser is modified, Create Custom Email is triggered"
+    },
+    {
+      "entity": "System",
+      "workflow": "Base Code",
+      "plugins": [],
+      "steps": [
+        "Base Code triggered",
+        "Custom workflow activity: BaseCodeActivity"
+      ],
+      "description": "Workflow Base Code processes System operations"
+    },
+    {
+      "entity": "System",
+      "workflow": "Send Email",
+      "plugins": [],
+      "steps": [
+        "Send Email triggered",
+        "Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity."
+      ],
+      "description": "Workflow Send Email processes System operations"
+    }
+  ],
+  "docs": {
+    "solutionId": "b31c05fa",
+    "generatedAt": "2026-03-14T07:38:14.004755+00:00",
+    "sections": [
+      {
+        "title": "Solution Overview",
+        "slug": "solution_overview",
+        "content": "# Solution Overview: Custom Email Management\n\nThis document provides a comprehensive overview of the Custom Email Management solution, detailing its purpose, scope, and high-level functional architecture. The information is derived exclusively from the solution's metadata.\n\n---\n\n## 1. Purpose and High-Level Description\n\nThe Custom Email Management solution provides a flexible and powerful framework for automating the creation and sending of emails within Microsoft Dynamics 365. It extends the native workflow capabilities by introducing a suite of custom workflow activities.\n\nThe core purpose of this solution is to enable advanced email processing scenarios that require more control than standard workflow steps allow. Key functionalities include:\n\n*   **Decoupled Email Creation and Sending:** The solution allows for the creation of an email record as a distinct step. This enables other processes or validation steps to occur before the email is ultimately sent.\n*   **Dynamic Email Generation:** Emails can be created based on `template` records, with support for checking the existence of specific attachments before generation.\n*   **Conditional Sending:** The `Create Custom Email` workflow includes a `SendInstantly` property, giving process designers control over immediate or delayed sending.\n*   **Process Orchestration:** The activities are designed to be used in conjunction, such as creating an email with `Create Custom Email Activity` and later sending it with the `Send Email` activity within the same workflow.\n\nThe solution is implemented entirely through custom workflow activities, with no custom plugins, providing a focused set of tools for process automation.\n\n---\n\n## 2. Solution Scope\n\nThe solution is comprised of several standard entities and a set of custom workflow activities that act upon them.\n\n### 2.1 Solution Components\n\n| Component Type                | Count | Names                                                                                                                                                                                                                                                                                                                                                     |\n| ----------------------------- | :---: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |\n| **Entities**                  |   7   | `email`, `activityparty`, `activitymimeattachment`, `template`, `attachment`, `queue`, `systemuser`                                                                                                                                                                                                                                                           |\n| **Workflows / Custom Activities** |   7   | `Create Custom Email Activity`, `Send Email Activity`, `Get Process Properties`, `Does Attachment Exist`, `Base Code`, `Create Custom Email`, `Send Email`                                                                                                                                                                                                |\n| **Plugins**                   |   0   | N/A                                                                                                                                                                                                                                                                                                                                                       |\n\n### 2.2 Core Entities\n\nThe solution leverages the following standard system entities to deliver its functionality. No custom entities are introduced.\n\n*   **email**: The central entity for creating and managing email activities.\n*   **template**: Used as a basis for generating email content.\n*   **attachment / activitymimeattachment**: Entities used for managing email attachments.\n*   **activityparty**: Represents the participants of an email (e.g., sender, recipient).\n*   **queue**: Used as a trigger point for the `Create Custom Email` workflow.\n*   **systemuser**: Represents users involved in the email process.\n\n---\n\n## 3. Functional Architecture\n\nThe solution's logic is encapsulated within a series of custom workflow activities. These activities can be used by workflow designers to build complex, automated email-centric business processes.\n\n### 3.1 Custom Workflow Activities\n\nThe following table details the custom workflow activities included in this solution.\n\n| Workflow Name                  | Trigger Type               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               - |\n| **Create Custom Email Activity** | Custom Workflow Activity   | Creates an email based on a custom template. <br> *Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity`*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              - |\n| **Send Email Activity**        | Custom Workflow Activity   | Sends an existing email record. <br> *Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity`*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           - |\n| **Get Process Properties**     | Custom Workflow Activity   | The metadata describes this as \"Send an existing email\". However, the name and implementation path (`...GetProcessPropertiesActivity`) suggest its function is to retrieve properties related to the running process.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   - |\n| **Does Attachment Exist**      | Custom Workflow Activity   | Checks if specified filenames exist as attachments on a CRM email template. <br> *Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity`*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        - |\n| **Base Code**                  | Custom Workflow Activity   | A base custom workflow activity named `BaseCodeActivity`. Likely a foundational code library for other activities.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         - |\n| **Create Custom Email**        | Custom Workflow Activity   | Creates a custom CRM `email` record based on input parameters. Can be triggered on the `queue` entity. Includes a `SendInstantly` property to control immediate sending.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        - |\n| **Send Email**                 | Custom Workflow Activity   | Sends an existing email record. This activity is designed to be used in conjunction with `Create Custom Email Activity`, allowing for intermediate steps between email creation and sending.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 - |",
+        "order": 0
+      },
+      {
+        "title": "Technical Architecture",
+        "slug": "technical_architecture",
+        "content": "# Technical Architecture Documentation\n\n## 1. Introduction\n\nThis document outlines the technical architecture of the custom email processing solution. The solution is designed to provide advanced capabilities for creating and sending emails within Microsoft Dynamics 365.\n\nThe architecture is built upon a set of standard Dynamics 365 entities and is driven by a suite of custom workflow activities. This design encapsulates all business logic within workflows, providing a configurable and reusable framework for email automation. There are no custom plugins in this solution.\n\n### Solution Components Overview\n\n| Component Type | Count | Names |\n| :--- | :--- | :--- |\n| **Entities** | 7 | `email`, `activityparty`, `activitymimeattachment`, `template`, `attachment`, `queue`, `systemuser` |\n| **Workflows** | 7 | `Create Custom Email Activity`, `Send Email Activity`, `Get Process Properties`, `Does Attachment Exist`, `Base Code`, `Create Custom Email`, `Send Email` |\n| **Plugins** | 0 | N/A |\n\n---\n\n## 2. Core Components\n\nThis section details the individual entities and workflows that comprise the solution.\n\n### 2.1. Entities\n\nThe solution utilizes seven standard Dynamics 365 entities to manage email data, recipients, attachments, and context. No custom entities are introduced.\n\n| Entity Logical Name | Description | Role in Solution |\n| :--- | :--- | :--- |\n| `email` | The standard Email Activity entity. | Represents the core email record that is created and sent by the workflows. |\n| `activityparty` | Represents a participant in an activity, such as an email sender or recipient. | Used to populate the `From`, `To`, `Cc`, and `Bcc` fields of the `email` entity. |\n| `activitymimeattachment` | Represents a file attachment for an email activity. | Used to attach files to the `email` records created by the workflows. |\n| `attachment` | Represents a file attached to a record, specifically used here for email templates. | Used by the `Does Attachment Exist` workflow to verify attachments on email templates. |\n| `template` | Stores email templates that can be used to create standardized emails. | Provides the base content and subject for emails created by the `Create Custom Email Activity` workflow. |\n| `queue` | A container for work items, including activities like emails. | Can be used as a trigger context or a sender/recipient for emails. The `Create Custom Email` workflow can be triggered on this entity. |\n| `systemuser` | Represents a user within the Dynamics 365 organization. | Can be used as a sender or recipient of emails. |\n\n### 2.2. Workflows (Custom Workflow Activities)\n\nThe solution's logic is entirely contained within seven custom workflow activities. These activities are designed to be used as steps within standard Dynamics 365 workflows or other processes, providing modular and reusable functionality.\n\n| Workflow Name | Description | Trigger / Type | Implementation Class |\n| :--- | :--- | :--- | :--- |\n| **Create Custom Email Activity** | Creates an email record based on a specified custom template. | Custom Workflow Activity | `DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity` |\n| **Send Email Activity** | Sends an existing email record. | Custom Workflow Activity | `DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity` |\n| **Get Process Properties** | Sends an existing email. | Custom Workflow Activity | `DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity` |\n| **Does Attachment Exist** | Checks if specified filenames exist as attachments on a CRM email template. | Custom Workflow Activity | `DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity` |\n| **Base Code** | A base custom workflow activity. | Custom Workflow Activity | `BaseCodeActivity` |\n| **Create Custom Email** | Creates a custom CRM email based on input parameters. Can be triggered on the `queue` entity. Includes an option to send the email immediately. | Custom Workflow Activity | Not specified. |\n| **Send Email** | Sends an existing email record. Designed to be used in conjunction with `CreateCustomEmailActivity`. | Custom Workflow Activity | Not specified. |\n\n---\n\n## 3. Architectural Flow and Interactions\n\nThe components of this solution interact to provide a flexible process for generating and sending emails. The primary flow involves creating an email from a template and then sending it.\n\n### 3.1. Email Creation and Sending Process\n\nA typical process flow is as follows:\n\n1.  **Initiation**: A parent process (e.g., a standard Dynamics 365 workflow) initiates the email creation.\n2.  **Email Creation**: The **`Create Custom Email Activity`** is called.\n    *   It uses a `template` record to populate the email's content.\n    *   It may leverage the **`Does Attachment Exist`** activity to validate that attachments associated with the `template` are available before proceeding.\n    *   It creates a new `email` entity record in a \"Draft\" state.\n    *   `activityparty` records are created to define the sender (`systemuser` or `queue`) and recipients.\n    *   `activitymimeattachment` records are created for any attachments.\n3.  **Intermediate Steps (Optional)**: The parent workflow can perform other logic or updates after the email record is created but before it is sent.\n4.  **Email Sending**: The **`Send Email Activity`** is called, referencing the `email` record created in the previous step. This activity changes the email's status to \"Pending Send\" and submits it to the email router or server-side synchronization for delivery.\n\nThe **`Create Custom Email`** workflow provides a consolidated alternative, allowing for the creation and optional immediate sending of an email in a single step.\n\n### 3.2. Component Interaction Diagram\n\nThe following diagram illustrates the relationships between the entities and the workflows that act upon them.\n\n```mermaid\ngraph TD\n    subgraph \"Entities\"\n        E_Email[email]\n        E_Template[template]\n        E_ActivityParty[activityparty]\n        E_Attachment[attachment]\n        E_MimeAttachment[activitymimeattachment]\n        E_Queue[queue]\n        E_User[systemuser]\n    end\n\n    subgraph \"Workflows (Custom Activities)\"\n        W_Create[Create Custom Email Activity]\n        W_Send[Send Email Activity]\n        W_CheckAttach[Does Attachment Exist]\n        W_GetProps[Get Process Properties]\n        W_CreateCustom[Create Custom Email]\n    end\n\n    E_Template -- \"Used by\" --> W_Create\n    E_Template -- \"Used by\" --> W_CheckAttach\n    E_Attachment -- \"Used by\" --> W_CheckAttach\n\n    E_Queue -- \"Triggers\" --> W_CreateCustom\n    E_Queue -- \"Used in\" --> W_Create\n    E_User -- \"Used in\" --> W_Create\n    E_User -- \"Used in\" --> W_CreateCustom\n\n    W_Create -- \"Creates\" --> E_Email\n    W_Create -- \"Creates\" --> E_ActivityParty\n    W_Create -- \"Creates\" --> E_MimeAttachment\n\n    E_Email -- \"Target of\" --> W_Send\n    E_Email -- \"Target of\" --> W_GetProps\n\n    E_ActivityParty -- \"Used in\" --> W_Send\n    E_MimeAttachment -- \"Used in\" --> W_Send\n```\n\nThis model demonstrates a clear separation of concerns, where entities hold the data and custom workflow activities contain the discrete, reusable business logic for processing that data.",
+        "order": 1
+      },
+      {
+        "title": "Entity Documentation",
+        "slug": "entity_documentation",
+        "content": "# Solution Documentation: Custom Email Management\n\nThis document provides a detailed technical overview of the solution components, including entities, workflows, and their relationships. The solution is designed to enhance email creation and sending capabilities within Microsoft Dynamics.\n\n## Solution Overview\n\nThis solution introduces a set of custom workflow activities to facilitate advanced email operations. It leverages several standard entities to achieve its functionality.\n\n**Components Summary:**\n\n| Component Type | Count | Names |\n| :--- | :--- | :--- |\n| **Entities** | 7 | `email`, `activityparty`, `activitymimeattachment`, `template`, `attachment`, `queue`, `systemuser` |\n| **Workflows** | 7 | `Create Custom Email Activity`, `Send Email Activity`, `Get Process Properties`, `Does Attachment Exist`, `Base Code`, `Create Custom Email`, `Send Email` |\n| **Plugins** | 0 | N/A |\n\n---\n\n## Entity Documentation\n\nThis section details the entities involved in this solution. Note that this solution utilizes standard entities and does not introduce custom fields or forms for them.\n\n### Email (`email`)\n\nRepresents an email activity record.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n*   **Associated Plugins:** None.\n\n### Activity Party (`activityparty`)\n\nRepresents a participant in an activity, such as an email sender or recipient.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n*   **Associated Plugins:** None.\n\n### Activity MIME Attachment (`activitymimeattachment`)\n\nRepresents a MIME attachment for an email activity.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n*   **Associated Plugins:** None.\n\n### Template (`template`)\n\nRepresents an email template that can be used to create standardized email messages.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n*   **Associated Plugins:** None.\n\n### Attachment (`attachment`)\n\nRepresents a file attachment for an email template.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n*   **Associated Plugins:** None.\n\n### Queue (`queue`)\n\nRepresents a queue for managing work items, including emails.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n    *   `Create Custom Email` (Triggering Entity)\n*   **Associated Plugins:** None.\n\n### System User (`systemuser`)\n\nRepresents a user in the system.\n\n*   **Fields:** No custom fields are introduced by this solution.\n*   **Forms:** No custom forms are associated with this solution.\n*   **Associated Workflows:**\n    *   `Create Custom Email Activity`\n    *   `Send Email Activity`\n    *   `Get Process Properties`\n    *   `Does Attachment Exist`\n    *   `Create Custom Email`\n*   **Associated Plugins:** None.\n\n---\n\n## Workflow Documentation\n\nThis section provides details on the custom workflow activities included in the solution.\n\n### Create Custom Email Activity\n\n*   **Description:** This activity creates an email record based on a specified custom template.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Create an email based on custom template.\n    2.  **Implementation:** `DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity`\n\n### Send Email Activity\n\n*   **Description:** This activity sends an existing email record.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Send an existing email.\n    2.  **Implementation:** `DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity`\n\n### Get Process Properties\n\n*   **Description:** This activity is used to send an existing email.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Send an existing email.\n    2.  **Implementation:** `DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity`\n\n### Does Attachment Exist\n\n*   **Description:** This activity checks if specified filenames exist as attachments on a CRM email template.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Check if the given filenames exist as CRM email template attachments.\n    2.  **Implementation:** `DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity`\n\n### Base Code\n\n*   **Description:** This component serves as a base for other custom workflow activities.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Custom workflow activity: `BaseCodeActivity`\n\n### Create Custom Email\n\n*   **Description:** Creates a custom CRM email record based on input parameters. It includes an option to send the email immediately based on the `SendInstantly` property.\n*   **Trigger:** Custom Workflow Activity.\n*   **Primary Entity:** `queue`\n*   **Steps:**\n    1.  Create a custom CRM email record based on the input parameters. Optionally, the email can be sent instantly depending on \"SendInstantly\" property.\n\n### Send Email\n\n*   **Description:** Sends an existing email record. This activity is designed to be used in conjunction with `Create Custom Email Activity`, allowing for intermediate workflow steps between email creation and sending.\n*   **Trigger:** Custom Workflow Activity.\n*   **Steps:**\n    1.  Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity.\n\n---\n\n## Plugin Documentation\n\nThis solution does not contain any custom plugins.",
+        "order": 2
+      },
+      {
+        "title": "Workflow Documentation",
+        "slug": "workflow_documentation",
+        "content": "# Workflow Documentation\n\nThis document provides a detailed overview of the workflows included in the solution. Each section outlines the purpose, trigger conditions, execution steps, and associated components for a specific workflow.\n\n---\n\n## 1. Create Custom Email Activity\n\nThis is a custom workflow activity designed to generate an email record from a custom template.\n\n*   **Description**: Creates an email record based on a specified custom template.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**:\n    *   `activitymimeattachment`\n    *   `activityparty`\n    *   `attachment`\n    *   `email`\n    *   `queue`\n    *   `systemuser`\n    *   `template`\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Create an email based on custom template. |\n| 2 | **Implementation**: `DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity` |\n\n---\n\n## 2. Send Email Activity\n\nThis custom workflow activity is used to send an email that has already been created within the system.\n\n*   **Description**: Sends a pre-existing email record.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**:\n    *   `activitymimeattachment`\n    *   `activityparty`\n    *   `attachment`\n    *   `email`\n    *   `queue`\n    *   `systemuser`\n    *   `template`\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Send an existing email. |\n| 2 | **Implementation**: `DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity` |\n\n---\n\n## 3. Get Process Properties\n\nThis is a custom workflow activity for retrieving process-related properties.\n\n*   **Description**: The provided metadata indicates this step sends an existing email, although the activity name suggests it retrieves process properties.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**:\n    *   `activitymimeattachment`\n    *   `activityparty`\n    *   `attachment`\n    *   `email`\n    *   `queue`\n    *   `systemuser`\n    *   `template`\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Send an existing email. |\n| 2 | **Implementation**: `DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity` |\n\n---\n\n## 4. Does Attachment Exist\n\nThis custom workflow activity validates the existence of attachments associated with an email template.\n\n*   **Description**: Checks if specified filenames exist as attachments on a CRM email template.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**:\n    *   `activitymimeattachment`\n    *   `activityparty`\n    *   `attachment`\n    *   `email`\n    *   `queue`\n    *   `systemuser`\n    *   `template`\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Check if the given filenames exist as CRM email template attachments. |\n| 2 | **Implementation**: `DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity` |\n\n---\n\n## 5. Base Code\n\nThis workflow represents a base custom workflow activity.\n\n*   **Description**: A custom workflow activity named `BaseCodeActivity`.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**: No specific entities are associated with this workflow based on the provided metadata.\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Custom workflow activity: BaseCodeActivity |\n\n---\n\n## 6. Create Custom Email\n\nThis workflow creates and optionally sends a custom email based on specified parameters.\n\n*   **Description**: Creates a custom CRM email record. The email can be sent immediately based on the `SendInstantly` input property.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes. The metadata indicates a trigger relationship with the `Queue` entity.\n*   **Associated Entities**:\n    *   `queue`\n    *   `systemuser`\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Create a custom CRM email record based on the input parameters. Optionally, the email can be sent instantly depending on \"SendInstantly\" property. |\n\n---\n\n## 7. Send Email\n\nThis custom workflow activity is designed to send an existing email record, often used in conjunction with email creation activities.\n\n*   **Description**: Sends an existing email record. It is designed to be used with activities like `Create Custom Email Activity`, allowing for intermediate steps between email creation and sending.\n*   **Trigger**: This is a Custom Workflow Activity that can be called from other processes.\n*   **Associated Entities**: No specific entities are associated with this workflow based on the provided metadata.\n\n### Steps\n\n| Step | Description |\n| :--- | :--- |\n| 1 | Send an existing email record. This custom workflow activity can be used in conjuntion with \"CreateCustomEmailActivity\", so this first create a custom email, other steps may be done in the workflow and then finally the email can be sent using the current activity. |",
+        "order": 3
+      },
+      {
+        "title": "Functional Flows",
+        "slug": "functional_flows",
+        "content": "# Functional Flow Documentation: Custom Email Solution\n\nThis document outlines the functional flows for the custom email solution. It details how data is processed from initiation to completion, based on the system's workflow automation components.\n\n## 1. Overview\n\nThe solution provides enhanced capabilities for creating and sending emails within Microsoft Dynamics 365. It leverages a suite of custom workflow activities to enable flexible and automated email generation processes. Key functionalities include creating emails from templates, managing attachments, and controlling the timing of email delivery.\n\nThe primary data entities involved in these processes are:\n*   `email`\n*   `template`\n*   `activityparty` (for recipients and senders)\n*   `attachment` / `activitymimeattachment`\n*   `queue`\n*   `systemuser`\n\nAll automation logic is encapsulated within custom workflow activities; no custom plugins are used in this solution.\n\n## 2. Core Automation Components\n\nThe functional flows are driven by a set of custom workflow activities. These activities are designed to be used within Dynamics 365 processes (workflows) to perform specific email-related actions.\n\n| Workflow Activity Name        | Trigger Type                | Description                                                                                                                                                                                                                         |\n| ----------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |\n| **Create Custom Email**       | Custom Workflow Activity    | Creates a custom CRM `email` record based on input parameters. Triggered on the `queue` entity. Optionally, the email can be sent instantly depending on the `SendInstantly` property.                                                |\n| **Create Custom Email Activity** | Custom Workflow Activity    | Creates an `email` record based on a custom `template`. Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.CreateCustomEmailActivity`.                                                                                    |\n| **Send Email**                | Custom Workflow Activity    | Sends an existing `email` record. This can be used in conjunction with `CreateCustomEmailActivity` to allow for a delay between email creation and sending.                                                                          |\n| **Send Email Activity**       | Custom Workflow Activity    | Sends an existing `email` record. Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.SendEmailActivity`.                                                                                                                   |\n| **Does Attachment Exist**     | Custom Workflow Activity    | Checks if specified filenames exist as attachments on a CRM email `template`. Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.DoesAttachmentExistActivity`.                                                              |\n| **Get Process Properties**    | Custom Workflow Activity    | Sends an existing `email` record. Implementation: `DXTools.CRM.Solutions.CustomEmails.Workflows.GetProcessPropertiesActivity`.                                                                                                        |\n| **Base Code**                 | Custom Workflow Activity    | A base custom workflow activity named `BaseCodeActivity`.                                                                                                                                                                           |\n\n## 3. Functional Flow Scenarios\n\nThe components can be combined to support several key business processes. The following sections describe the primary functional flows.\n\n### Flow 1: Create and Send Email Instantly\n\nThis flow describes a single-step process where an email is created and immediately sent. This is typically used for straightforward, real-time notifications.\n\n**Process Steps:**\n\n1.  **Initiation:** The process is triggered, invoking the **`Create Custom Email`** custom workflow activity. The metadata indicates this workflow is triggered on the `queue` entity.\n2.  **Email Creation:** The activity creates a new `email` entity record.\n    *   Sender and recipients are populated in the `activityparty` entity. The sender can be a `systemuser` or a `queue`.\n    *   The email body and subject are populated based on input parameters.\n3.  **Conditional Send:** The activity checks the value of its `SendInstantly` input property.\n4.  **Completion:** If `SendInstantly` is true, the email is sent immediately, and its status is updated. If false, the `email` record is created with a \"Draft\" status, and the flow concludes.\n\n### Flow 2: Create, Validate, and Send Email (Delayed Send)\n\nThis flow provides more control by separating the creation of an email from the action of sending it. This allows for intermediate validation or modification steps.\n\n**Process Steps:**\n\n1.  **Initiation:** A parent workflow process begins.\n2.  **Email Creation:** The **`Create Custom Email Activity`** is called.\n    *   This step creates a new `email` record in a draft state.\n    *   It uses a specified `template` record to populate the email's content.\n3.  **Attachment Validation (Optional):** The **`Does Attachment Exist`** activity can be called.\n    *   This step checks if attachments associated with the source `template` exist, ensuring all required files are present before sending.\n4.  **Intermediate Processing (Optional):** The parent workflow can perform other business logic, such as updating related records or waiting for an approval. The **`Get Process Properties`** activity can be used during this stage.\n5.  **Send Action:** The **`Send Email`** or **`Send Email Activity`** is called.\n    *   This activity takes the previously created draft `email` record as an input.\n    *   It executes the send action.\n6.  **Completion:** The `email` record's status is updated to \"Sent\". The data flow is complete.\n\n## 4. Data Model and Entity Relationships\n\nThe following entities are central to the execution of the custom email flows.\n\n| Entity                   | Role in Functional Flows                                                                                                                                                           |\n| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |\n| `email`                  | The primary record representing the email message. It is created and updated by the workflow activities.                                                                           |\n| `template`               | Provides the boilerplate content (subject, body) for new emails created via the `Create Custom Email Activity`.                                                                    |\n| `activityparty`          | Stores the participants of the email activity, including the sender (`from`) and recipients (`to`, `cc`, `bcc`). These can be `systemuser` or `queue` records.                       |\n| `attachment`             | Represents the files attached to an email `template`. The `Does Attachment Exist` activity interacts with this data.                                                               |\n| `activitymimeattachment` | Represents the actual file attachment instance linked to a specific `email` record after it has been created.                                                                      |\n| `queue`                  | Can act as a sender or owner of an email. The `Create Custom Email` workflow is configured to be triggered on this entity.                                                          |\n| `systemuser`             | Can act as a sender or owner of an email. Represents an individual user within the system.                                                                                         |",
+        "order": 4
+      }
+    ],
+    "verified": false
+  },
+  "output_folder": "/home/runner/workspace/backend/data/solutions/b31c05fa"
+}
