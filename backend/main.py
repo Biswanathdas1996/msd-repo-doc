@@ -189,12 +189,21 @@ async def upload_solution(
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    MAX_UPLOAD_SIZE = 100 * 1024 * 1024
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
+    CHUNK_SIZE = 8 * 1024 * 1024
+
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        content = await file.read()
-        if len(content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(status_code=400, detail="File too large. Max 100MB.")
-        tmp.write(content)
+        total_written = 0
+        while True:
+            chunk = await file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            total_written += len(chunk)
+            if total_written > MAX_UPLOAD_SIZE:
+                tmp.close()
+                os.unlink(tmp.name)
+                raise HTTPException(status_code=400, detail="File too large. Max 10GB.")
+            tmp.write(chunk)
         tmp_path = tmp.name
 
     solution_name = name or file.filename or ""

@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
-import { useUpload, useGitHubImport } from "@/hooks/use-solutions";
+import { useState, useRef, useCallback } from "react";
+import { useGitHubImport } from "@/hooks/use-solutions";
 import { UploadCloud, X, FileArchive, Loader2, AlertCircle, Github, Link } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface UploadDialogProps {
   open: boolean;
@@ -11,18 +12,28 @@ interface UploadDialogProps {
 
 type SourceMode = "zip" | "github";
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
 export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
   const [mode, setMode] = useState<SourceMode>("zip");
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
   const { toast } = useToast();
-  const uploadMutation = useUpload();
   const githubMutation = useGitHubImport();
+  const queryClient = useQueryClient();
 
-  const isPending = uploadMutation.isPending || githubMutation.isPending;
+  const isPending = isUploading || githubMutation.isPending;
 
   if (!open) return null;
 
@@ -63,28 +74,79 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
   };
 
   const handleClose = () => {
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+      xhrRef.current = null;
+    }
     onOpenChange(false);
     setFile(null);
     setName("");
     setGithubUrl("");
     setMode("zip");
+    setUploadProgress(null);
+    setIsUploading(false);
+  };
+
+  const uploadWithProgress = (fileToUpload: File, solutionName: string) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", fileToUpload);
+    if (solutionName) {
+      formData.append("name", solutionName);
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        setUploadProgress(percent);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(null);
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        queryClient.invalidateQueries({ queryKey: ["/py-api/solutions"] });
+        toast({ title: "Upload complete", description: "Solution is now being parsed and processed." });
+        handleClose();
+      } else {
+        let errorMsg = "An unexpected error occurred.";
+        try {
+          const resp = JSON.parse(xhr.responseText);
+          errorMsg = resp.detail || resp.error || errorMsg;
+        } catch {}
+        toast({ title: "Upload failed", description: errorMsg, variant: "destructive" });
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(null);
+      toast({ title: "Upload failed", description: "Network error. Please check your connection and try again.", variant: "destructive" });
+    });
+
+    xhr.addEventListener("abort", () => {
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(null);
+    });
+
+    xhr.open("POST", "/py-api/solutions/upload");
+    xhr.send(formData);
   };
 
   const handleSubmit = () => {
     if (mode === "zip") {
       if (!file) return;
-      uploadMutation.mutate(
-        { data: { file, name: name || file.name } },
-        {
-          onSuccess: () => {
-            toast({ title: "Upload started", description: "Solution is now being parsed and processed." });
-            handleClose();
-          },
-          onError: (error) => {
-            toast({ title: "Upload failed", description: error.data?.error || "An unexpected error occurred.", variant: "destructive" });
-          }
-        }
-      );
+      uploadWithProgress(file, name || file.name);
     } else {
       if (!githubUrl.trim()) return;
       githubMutation.mutate(
@@ -121,6 +183,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
           <div className="flex gap-2 p-1 bg-muted/50 rounded-xl border border-border/50">
             <button
               onClick={() => setMode("zip")}
+              disabled={isPending}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 mode === "zip"
                   ? "bg-background text-foreground shadow-sm border border-border/50"
@@ -132,6 +195,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
             </button>
             <button
               onClick={() => setMode("github")}
+              disabled={isPending}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 mode === "github"
                   ? "bg-background text-foreground shadow-sm border border-border/50"
@@ -150,58 +214,86 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Core CRM Customizations"
-              className="w-full px-4 py-2.5 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              disabled={isPending}
+              className="w-full px-4 py-2.5 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50"
             />
           </div>
 
           {mode === "zip" ? (
-            <div 
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`
-                border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer
-                ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/50 hover:bg-muted/20'}
-                ${file ? 'bg-muted/30 border-solid border-muted-foreground/30' : ''}
-              `}
-              onClick={() => !file && fileInputRef.current?.click()}
-            >
-              <input 
-                type="file" 
-                accept=".zip"
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-              />
-              
-              {file ? (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                    <FileArchive className="w-6 h-6" />
+            <>
+              <div 
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={isUploading ? undefined : handleDrop}
+                className={`
+                  border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200
+                  ${isUploading ? 'cursor-default' : 'cursor-pointer'}
+                  ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/50 hover:bg-muted/20'}
+                  ${file ? 'bg-muted/30 border-solid border-muted-foreground/30' : ''}
+                `}
+                onClick={() => !file && !isUploading && fileInputRef.current?.click()}
+              >
+                <input 
+                  type="file" 
+                  accept=".zip"
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                />
+                
+                {file ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <FileArchive className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                    </div>
+                    {!isUploading && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                        className="mt-2 text-sm text-destructive hover:underline"
+                      >
+                        Remove file
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                ) : (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Click to upload or drag and drop</p>
+                      <p className="text-sm text-muted-foreground mt-1">Dynamics Solution ZIP files (up to 10 GB)</p>
+                    </div>
                   </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    className="mt-2 text-sm text-destructive hover:underline"
-                  >
-                    Remove file
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                    <UploadCloud className="w-6 h-6" />
+                )}
+              </div>
+
+              {uploadProgress !== null && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {uploadProgress < 100 ? "Uploading..." : "Processing..."}
+                    </span>
+                    <span className="font-medium text-foreground">{uploadProgress}%</span>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                    <p className="text-sm text-muted-foreground mt-1">Dynamics Solution ZIP files only</p>
+                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
                   </div>
+                  {file && uploadProgress < 100 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Large files may take several minutes to upload
+                    </p>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           ) : (
             <div className="space-y-3">
               <div className="space-y-2">
@@ -213,7 +305,8 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
                     placeholder="https://github.com/owner/repo"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    disabled={isPending}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -238,10 +331,10 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
           <Button 
             variant="outline" 
             onClick={handleClose}
-            disabled={isPending}
+            disabled={githubMutation.isPending}
             className="rounded-xl px-5"
           >
-            Cancel
+            {isUploading ? "Cancel Upload" : "Cancel"}
           </Button>
           <Button 
             onClick={handleSubmit}
@@ -251,7 +344,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
             {isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {mode === "github" ? "Importing..." : "Processing..."}
+                {isUploading ? "Uploading..." : mode === "github" ? "Importing..." : "Processing..."}
               </>
             ) : (
               mode === "github" ? "Import & Process" : "Upload & Process"

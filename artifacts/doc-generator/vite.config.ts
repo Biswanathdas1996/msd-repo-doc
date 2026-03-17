@@ -67,6 +67,12 @@ export default defineConfig({
         target: "http://localhost:5001",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/py-api/, ""),
+        timeout: 0,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq) => {
+            proxyReq.setSocketKeepAlive(true);
+          });
+        },
       },
     },
     fs: {

@@ -70,7 +70,7 @@ artifacts-monorepo/
 ## Key Endpoints (Python FastAPI at /py-api)
 
 - `GET /py-api/healthz` - Health check
-- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data)
+- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB)
 - `GET /py-api/solutions` - List solutions
 - `GET /py-api/solutions/{id}` - Solution details
 - `DELETE /py-api/solutions/{id}` - Delete solution
