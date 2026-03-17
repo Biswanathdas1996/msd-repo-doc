@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcInventAgingCmdAggregateReceiptQty_Extension</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+[ExtensionOf(classStr(InventAgingCmdAggregateReceiptQty))]
+final class PwcInventAgingCmdAggregateReceiptQty_Extension
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>execute</Name>
+				<Source><![CDATA[
+    public void execute()
+    {
+        InventQty qty = inventAgingCmdMapQueryReceipt.parmQty();
+
+        if (qty)
+        {
+            InventAgingTmp inventAging = inventAgingReportLines.findOrCreate(inventAgingCmdMapQueryReceipt.parmItemGroupId(),
+                                                                             inventAgingCmdMapQueryReceipt.parmItemId(),
+                                                                             inventAgingCmdMapQueryReceipt.parmItemName(),
+                                                                             inventAgingCmdMapQueryReceipt.parmUnit(),
+                                                                             inventAgingCmdMapQueryReceipt.parmInventDim());
+
+            TransDate transDate = inventAgingCmdMapQueryReceipt.parmTransDate();
+
+            if(inventAging.PwcLastDatePhysical == dateNull() || transDate < inventAging.PwcLastDatePhysical)
+            {
+                inventAging.PwcLastDatePhysical =   transDate;
+                inventAging.PwcAgingDays        =   contract.parmAsOnDate() - transDate;
+                inventAgingReportLines.insert(inventAging);
+            }
+        }
+
+        next execute();
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

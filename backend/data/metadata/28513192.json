@@ -1,0 +1,27 @@
+{
+  "id": "28513192",
+  "name": "Functionality test agent",
+  "uploadedAt": "2026-03-17T11:17:38.162451+00:00",
+  "status": "ready",
+  "entityCount": 0,
+  "workflowCount": 0,
+  "pluginCount": 0,
+  "formCount": 0,
+  "roleCount": 0,
+  "webResourceCount": 0,
+  "hasDocumentation": false,
+  "metadata": {},
+  "entities": [],
+  "workflows": [],
+  "plugins": [],
+  "forms": [],
+  "knowledge_graph": {
+    "entities": {},
+    "workflows": {},
+    "plugins": {},
+    "relationships": []
+  },
+  "functional_flows": [],
+  "docs": null,
+  "output_folder": "/home/runner/workspace/backend/data/solutions/28513192"
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxViewExtension xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>InventAgingReceiptView.Pwc</Name>
+	<DataSources />
+	<FieldGroupExtensions />
+	<FieldGroups />
+	<FieldModifications />
+	<Fields>
+		<AxViewField xmlns=""
+			i:type="AxViewFieldBound">
+			<Name>PwcTransDate</Name>
+			<DataField>TransDate</DataField>
+			<DataSource>InventAgingPhysicalTransaction</DataSource>
+		</AxViewField>
+	</Fields>
+	<Mappings />
+	<PropertyModifications />
+	<Ranges />
+</AxViewExtension>

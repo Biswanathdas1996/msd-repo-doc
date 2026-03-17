@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcInventAgingCmdAggregateSelected_Extension</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+[ExtensionOf(classStr(InventAgingCmdAggregateSelected))]
+final class PwcInventAgingCmdAggregateSelected_Extension
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>initAggregatedLine</Name>
+				<Source><![CDATA[
+    protected void initAggregatedLine(InventAgingTmp _aggregatedLine, InventAgingTmp _inputLine)
+    {
+        LogisticsPostalAddress          postalAddress;
+        InventLocation                  invLocation;
+        InventLocationLogisticsLocation invLogLoc;
+
+        postalAddress.clear();
+        invLocation.clear();
+        invLogLoc.clear();
+
+        select firstonly invLocation
+            where invLocation.InventLocationId  ==  _inputLine.InventLocationId
+            join invLogLoc
+            where invLogLoc.InventLocation  ==  invLocation.RecId
+            &&  invLogLoc.IsPrimary         ==  NoYes::Yes
+            &&  invLogLoc.IsPostalAddress   ==  NoYes::Yes
+            join postalAddress
+            where postalAddress.Location    ==  invLogLoc.Location;
+
+        _aggregatedLine.PwcAgingDays        =   _inputLine.PwcAgingDays;
+        _aggregatedLine.PwcLastDatePhysical =   _inputLine.PwcLastDatePhysical;
+        _aggregatedLine.PwcWarehouseName    =   InventLocation::find(_inputLine.InventLocationId).Name;
+        _aggregatedLine.PwcCityName         =   postalAddress.City;
+
+        if(_inputLine.QtyofAgingPeriod5)
+        {
+            if(InventTable::find(_inputLine.ItemId).isItemBatchActivated())
+            {
+                TransDate batchDate = InventBatch::find(_inputLine.InventBatchId, _inputLine.ItemId).prodDate;
+                
+                _aggregatedLine.PwcAgingDays        =   contract.parmAsOnDate() - batchDate;
+                _aggregatedLine.PwcLastDatePhysical =   batchDate;
+            }
+            else
+            {
+                InventAgingReceiptView  receiptView, receiptViewDate;
+                Qty         newQty;
+                TransDate   grnDate;
+
+                select sum(Qty) from receiptView
+                    where receiptView.ItemId    ==  _inputLine.ItemId
+                    &&  receiptView.InventLocationId ==  _inputLine.InventLocationId
+                    &&  receiptView.TransDate   <=  contract.parmAsOnDate()
+                    &&  receiptView.Qty <   0;
+
+                newQty  =   receiptView.Qty;
+
+                while select sum(Qty) from receiptViewDate group by receiptViewDate.TransDate
+                    where receiptViewDate.ItemId    ==  _inputLine.ItemId
+                    &&  receiptViewDate.InventLocationId ==  _inputLine.InventLocationId
+                    &&  receiptViewDate.TransDate   <=  contract.parmAsOnDate()
+                    &&  receiptViewDate.Qty >   0
+                {
+                    newQty  +=   receiptViewDate.Qty;
+
+                    if(newQty > 0)
+                    {
+                        grnDate =   receiptViewDate.TransDate;
+                        break;
+                    }
+                }
+
+                _aggregatedLine.PwcAgingDays        =   contract.parmAsOnDate() - grnDate;
+                _aggregatedLine.PwcLastDatePhysical =   grnDate;                
+            }
+        }
+        next initAggregatedLine(_aggregatedLine, _inputLine);
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

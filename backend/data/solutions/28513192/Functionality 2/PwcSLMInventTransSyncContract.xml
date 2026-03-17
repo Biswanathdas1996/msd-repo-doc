@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcSLMInventTransSyncContract</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+[DataContract]
+class PwcSLMInventTransSyncContract
+{
+    PwcInventTransSyncType     transType;
+
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>parmTransType</Name>
+				<Source><![CDATA[
+    [DataMember('Trans Type')]
+    public PwcInventTransSyncType parmTransType(PwcInventTransSyncType _parm = transType)
+    {
+        transType = _parm;
+        return transType;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>
