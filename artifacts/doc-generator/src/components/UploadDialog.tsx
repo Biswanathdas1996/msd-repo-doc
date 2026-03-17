@@ -29,6 +29,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const githubMutation = useGitHubImport();
   const queryClient = useQueryClient();
@@ -78,6 +79,10 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       xhrRef.current.abort();
       xhrRef.current = null;
     }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     onOpenChange(false);
     setFile(null);
     setName("");
@@ -87,70 +92,111 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
     setIsUploading(false);
   };
 
-  const uploadWithProgress = (fileToUpload: File, solutionName: string) => {
+  const CHUNK_SIZE = 50 * 1024 * 1024; // 50 MB per chunk
+
+  const uploadWithProgress = async (fileToUpload: File, solutionName: string) => {
     setIsUploading(true);
     setUploadProgress(0);
 
-    const formData = new FormData();
-    formData.append("file", fileToUpload);
-    if (solutionName) {
-      formData.append("name", solutionName);
-    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
-    const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr;
+    const totalSize = fileToUpload.size;
+    const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
 
-    // Disable timeout — large files can take many minutes on slow connections
-    xhr.timeout = 0;
+    try {
+      const initRes = await fetch("/py-api/solutions/upload/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: fileToUpload.name,
+          totalSize,
+          totalChunks,
+          name: solutionName,
+        }),
+        signal: abortController.signal,
+      });
 
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
+      if (!initRes.ok) {
+        const err = await initRes.json().catch(() => ({ detail: "Failed to start upload" }));
+        throw new Error(err.detail || "Failed to start upload");
+      }
+
+      const { uploadId } = await initRes.json();
+
+      for (let i = 0; i < totalChunks; i++) {
+        if (abortController.signal.aborted) return;
+
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, totalSize);
+        const chunkBlob = fileToUpload.slice(start, end);
+
+        const chunkForm = new FormData();
+        chunkForm.append("file", chunkBlob, fileToUpload.name);
+        chunkForm.append("uploadId", uploadId);
+        chunkForm.append("chunkIndex", String(i));
+
+        let retries = 0;
+        const maxRetries = 3;
+        while (retries <= maxRetries) {
+          try {
+            const chunkRes = await fetch("/py-api/solutions/upload/chunk", {
+              method: "POST",
+              body: chunkForm,
+              signal: abortController.signal,
+            });
+
+            if (!chunkRes.ok) {
+              const err = await chunkRes.json().catch(() => ({ detail: "Chunk upload failed" }));
+              throw new Error(err.detail || "Chunk upload failed");
+            }
+            break;
+          } catch (err: any) {
+            if (err.name === "AbortError") return;
+            retries++;
+            if (retries > maxRetries) throw err;
+            await new Promise((r) => setTimeout(r, 1000 * retries));
+          }
+        }
+
+        const percent = Math.round(((i + 1) / totalChunks) * 100);
         setUploadProgress(percent);
       }
-    });
 
-    xhr.addEventListener("load", () => {
-      xhrRef.current = null;
-      setIsUploading(false);
-      setUploadProgress(null);
+      const finalRes = await fetch("/py-api/solutions/upload/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId, name: solutionName }),
+        signal: abortController.signal,
+      });
 
-      if (xhr.status >= 200 && xhr.status < 300) {
-        queryClient.invalidateQueries({ queryKey: ["/py-api/solutions"] });
-        toast({ title: "Upload complete", description: "Solution is now being parsed and processed." });
-        handleClose();
-      } else {
-        let errorMsg = "An unexpected error occurred.";
-        try {
-          const resp = JSON.parse(xhr.responseText);
-          errorMsg = resp.detail || resp.error || errorMsg;
-        } catch {}
-        toast({ title: "Upload failed", description: errorMsg, variant: "destructive" });
+      if (!finalRes.ok) {
+        const err = await finalRes.json().catch(() => ({ detail: "Finalize failed" }));
+        throw new Error(err.detail || "Finalize failed");
       }
-    });
 
-    xhr.addEventListener("error", () => {
-      xhrRef.current = null;
+      abortControllerRef.current = null;
       setIsUploading(false);
       setUploadProgress(null);
-      toast({ title: "Upload failed", description: "Network error. Please check your connection and try again.", variant: "destructive" });
-    });
-
-    xhr.addEventListener("abort", () => {
-      xhrRef.current = null;
+      queryClient.invalidateQueries({ queryKey: ["/py-api/solutions"] });
+      toast({ title: "Upload complete", description: "Solution is now being parsed and processed." });
+      handleClose();
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        abortControllerRef.current = null;
+        setIsUploading(false);
+        setUploadProgress(null);
+        return;
+      }
+      abortControllerRef.current = null;
       setIsUploading(false);
       setUploadProgress(null);
-    });
-
-    xhr.addEventListener("timeout", () => {
-      xhrRef.current = null;
-      setIsUploading(false);
-      setUploadProgress(null);
-      toast({ title: "Upload timed out", description: "The upload took too long. Please try again with a stable connection.", variant: "destructive" });
-    });
-
-    xhr.open("POST", "/py-api/solutions/upload");
-    xhr.send(formData);
+      toast({
+        title: "Upload failed",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSubmit = () => {

@@ -70,7 +70,10 @@ artifacts-monorepo/
 ## Key Endpoints (Python FastAPI at /py-api)
 
 - `GET /py-api/healthz` - Health check
-- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB)
+- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB, legacy single-request)
+- `POST /py-api/solutions/upload/init` - Initialize chunked upload session (JSON body: filename, totalSize, totalChunks, name)
+- `POST /py-api/solutions/upload/chunk` - Upload a single chunk (multipart: file, uploadId, chunkIndex; idempotent via seek-based writes)
+- `POST /py-api/solutions/upload/finalize` - Finalize chunked upload and start processing (JSON body: uploadId, name)
 - `GET /py-api/solutions` - List solutions
 - `GET /py-api/solutions/{id}` - Solution details
 - `DELETE /py-api/solutions/{id}` - Delete solution
