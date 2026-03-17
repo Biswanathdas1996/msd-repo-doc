@@ -3,6 +3,59 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
 
+function saveSvgAsPng(svgHtml: string, filename = 'diagram.png', scale = 3) {
+  const container = document.createElement('div');
+  container.innerHTML = svgHtml;
+  const svgEl = container.querySelector('svg');
+  if (!svgEl) return;
+
+  const bbox = svgEl.viewBox?.baseVal;
+  const w = bbox?.width || parseFloat(svgEl.getAttribute('width') || '800');
+  const h = bbox?.height || parseFloat(svgEl.getAttribute('height') || '600');
+
+  svgEl.setAttribute('width', String(w));
+  svgEl.setAttribute('height', String(h));
+  svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgEl.setAttribute('xmlns:fo', 'http://www.w3.org/1999/xhtml');
+
+  const styles = document.querySelectorAll('style');
+  const extraCss = Array.from(styles)
+    .map(s => s.textContent || '')
+    .filter(t => t.includes('mermaid'))
+    .join('\n');
+  if (extraCss) {
+    const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    styleEl.textContent = extraCss;
+    svgEl.insertBefore(styleEl, svgEl.firstChild);
+  }
+
+  const serialized = new XMLSerializer().serializeToString(svgEl);
+  const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#070a12';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(pngBlob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
+  img.src = dataUrl;
+}
+
 mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
@@ -239,11 +292,21 @@ function FullscreenDiagramViewer({
           </button>
         </div>
 
-        {/* Right: close */}
-        <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-muted-foreground hover:text-red-400 transition-all text-xs font-medium" title="Close (Esc)">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          <span className="hidden sm:inline">Close</span>
-        </button>
+        {/* Right: save + close */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+            title="Save as PNG"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+            <span className="hidden sm:inline">Save PNG</span>
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-muted-foreground hover:text-red-400 transition-all text-xs font-medium" title="Close (Esc)">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            <span className="hidden sm:inline">Close</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Canvas ── */}
@@ -393,16 +456,26 @@ function MermaidBlock({ code }: { code: string }) {
               </div>
             </div>
             {svgHtml && (
-              <button
-                onClick={openFullscreen}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
-                title="Open fullscreen viewer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
-                </svg>
-                Expand
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                  title="Save diagram as PNG"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                  PNG
+                </button>
+                <button
+                  onClick={openFullscreen}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                  title="Open fullscreen viewer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                  </svg>
+                  Expand
+                </button>
+              </div>
             )}
           </div>
 
