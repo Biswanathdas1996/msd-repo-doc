@@ -3,29 +3,57 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
 
-// Initialise Mermaid once — refined dark palette for readability
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'dark',
+  theme: 'base',
   securityLevel: 'loose',
   fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 16 },
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+    padding: 20,
+    nodeSpacing: 50,
+    rankSpacing: 60,
+    diagramPadding: 20,
+    wrappingWidth: 200,
+  },
   themeVariables: {
     darkMode: true,
-    background: '#0d1117',
-    primaryColor: '#1e3a5f',
+    background: 'transparent',
+    fontFamily: "'Inter', system-ui, sans-serif",
+    fontSize: '14px',
+
+    primaryColor: '#1a2744',
     primaryTextColor: '#e2e8f0',
     primaryBorderColor: '#3b82f6',
-    secondaryColor: '#1a1e2e',
-    tertiaryColor: '#162032',
-    lineColor: '#475569',
-    textColor: '#cbd5e1',
-    mainBkg: '#131a2b',
-    nodeBorder: '#334155',
-    clusterBkg: '#0f1729',
-    clusterBorder: '#1e293b',
-    edgeLabelBackground: '#0d1117',
-    fontSize: '13px',
+
+    secondaryColor: '#1e293b',
+    secondaryTextColor: '#cbd5e1',
+    secondaryBorderColor: '#475569',
+
+    tertiaryColor: '#0f172a',
+    tertiaryTextColor: '#94a3b8',
+    tertiaryBorderColor: '#334155',
+
+    lineColor: '#64748b',
+    textColor: '#e2e8f0',
+
+    mainBkg: '#1e293b',
+    nodeBorder: '#3b82f6',
+    nodeTextColor: '#f1f5f9',
+
+    clusterBkg: '#0f172a',
+    clusterBorder: '#1e40af',
+    titleColor: '#93c5fd',
+
+    edgeLabelBackground: '#0f172a',
+    activeTaskBorderColor: '#60a5fa',
+    activeTaskBkgColor: '#1e3a5f',
+
+    noteBkgColor: '#1e293b',
+    noteTextColor: '#cbd5e1',
+    noteBorderColor: '#475569',
   },
 });
 
@@ -36,8 +64,7 @@ mermaid.initialize({
 function sanitiseMermaid(raw: string): string {
   let s = raw.trim();
   s = s.replace(/^```mermaid\s*/i, '').replace(/```\s*$/, '');
-  s = s.replace(/<br\s*\/?>/gi, ' - ');
-  s = s.replace(/(\b\w+)\{\{([^}]*?)\}\}/g, (_m, id, label) => {
+  s = s.replace(/(\b\w+)\{\{([^}]*?)\}\}/g, (_m: string, id: string, label: string) => {
     const clean = label.trim().replace(/"/g, "'");
     return `${id}["${clean}"]`;
   });
@@ -248,7 +275,7 @@ function FullscreenDiagramViewer({
         >
           <div
             ref={svgWrapRef}
-            className="[&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
+            className="mermaid-container [&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
             dangerouslySetInnerHTML={{ __html: svgHtml }}
           />
         </div>
@@ -384,7 +411,7 @@ function MermaidBlock({ code }: { code: string }) {
             )}
             <div
               ref={containerRef}
-              className={`flex justify-center overflow-x-auto p-6 [&_svg]:max-w-full transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
+              className={`mermaid-container flex justify-center overflow-x-auto p-6 [&_svg]:max-w-full transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
             />
           </div>
 

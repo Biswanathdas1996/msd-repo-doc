@@ -102,6 +102,50 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400;
   }
 
+  /* Mermaid diagram enhancements */
+  .mermaid-container svg {
+    font-family: 'Inter', system-ui, sans-serif !important;
+  }
+  .mermaid-container .node rect,
+  .mermaid-container .node circle,
+  .mermaid-container .node ellipse,
+  .mermaid-container .node polygon {
+    rx: 10;
+    ry: 10;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  }
+  .mermaid-container .node .label {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.01em;
+  }
+  .mermaid-container .cluster rect {
+    rx: 14 !important;
+    ry: 14 !important;
+    stroke-width: 1.5px !important;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+  }
+  .mermaid-container .cluster .nodeLabel {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .mermaid-container .edgePath .path {
+    stroke-width: 2px !important;
+    opacity: 0.8;
+  }
+  .mermaid-container .edgeLabel {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    background-color: rgba(15, 23, 42, 0.9) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px;
+  }
+  .mermaid-container .marker {
+    fill: #64748b !important;
+  }
+
   /* Custom Scrollbar for dark theme */
   ::-webkit-scrollbar {
     width: 8px;

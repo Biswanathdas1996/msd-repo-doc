@@ -55,7 +55,8 @@ const TABS = [
 export default function SolutionDetail() {
   const [, params] = useRoute("/solutions/:id");
   const id = params?.id || "";
-  const [activeTab, setActiveTab] = useState('overview');
+  const initialTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') || 'overview' : 'overview';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const { toast } = useToast();
 
   const { data: solution, isLoading: isLoadingSolution } = useSolutionDetails(id);
