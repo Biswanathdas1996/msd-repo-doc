@@ -102,48 +102,71 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400;
   }
 
-  /* Mermaid diagram enhancements */
+  /* Mermaid diagram — modern dark overlay */
   .mermaid-container svg {
     font-family: 'Inter', system-ui, sans-serif !important;
   }
+
   .mermaid-container .node rect,
   .mermaid-container .node circle,
   .mermaid-container .node ellipse,
   .mermaid-container .node polygon {
-    rx: 10;
-    ry: 10;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+    rx: 12px !important;
+    ry: 12px !important;
+    stroke-width: 1.5px !important;
+    filter: drop-shadow(0 4px 20px rgba(59, 130, 246, 0.12)) !important;
   }
-  .mermaid-container .node .label {
+  .mermaid-container .node .label,
+  .mermaid-container .node .label div,
+  .mermaid-container .node .label span,
+  .mermaid-container .node .label p,
+  .mermaid-container .node .nodeLabel,
+  .mermaid-container .label foreignObject div {
     font-size: 13px !important;
     font-weight: 500 !important;
-    letter-spacing: 0.01em;
+    line-height: 1.5 !important;
+    color: #f1f5f9 !important;
   }
+
   .mermaid-container .cluster rect {
-    rx: 14 !important;
-    ry: 14 !important;
+    rx: 16px !important;
+    ry: 16px !important;
     stroke-width: 1.5px !important;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+    stroke-dasharray: none !important;
+    filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.25)) !important;
   }
+  .mermaid-container .cluster span.nodeLabel,
   .mermaid-container .cluster .nodeLabel {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    color: #93c5fd !important;
   }
+
   .mermaid-container .edgePath .path {
     stroke-width: 2px !important;
-    opacity: 0.8;
   }
   .mermaid-container .edgeLabel {
     font-size: 11px !important;
     font-weight: 500 !important;
-    background-color: rgba(15, 23, 42, 0.9) !important;
-    padding: 2px 6px !important;
-    border-radius: 4px;
   }
-  .mermaid-container .marker {
-    fill: #64748b !important;
+  .mermaid-container .edgeLabel rect {
+    fill: #111827 !important;
+    stroke: #1e293b !important;
+    stroke-width: 1px !important;
+    rx: 6px !important;
+    ry: 6px !important;
+    opacity: 0.95 !important;
+  }
+  .mermaid-container .edgeLabel .label span,
+  .mermaid-container .edgeLabel .label div {
+    color: #94a3b8 !important;
+    background: transparent !important;
+  }
+  .mermaid-container .marker,
+  .mermaid-container marker path {
+    fill: #3b82f6 !important;
   }
 
   /* Custom Scrollbar for dark theme */
