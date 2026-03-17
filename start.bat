@@ -44,6 +44,21 @@ if %ERRORLEVEL% neq 0 (
 
 
 :: ══════════════════════════════════════════════
+:: Load .env file if it exists
+:: ══════════════════════════════════════════════
+if exist "%ROOT%\.env" (
+    echo [INFO] Loading .env file...
+    for /f "usebackq tokens=1,* delims==" %%A in ("%ROOT%\.env") do (
+        set "line=%%A"
+        if not "!line:~0,1!"=="#" if not "%%A"=="" (
+            set "%%A=%%B"
+        )
+    )
+    echo [OK] Environment variables loaded.
+    echo.
+)
+
+:: ══════════════════════════════════════════════
 :: Launch each service in its own cmd window
 :: ══════════════════════════════════════════════
 
@@ -56,7 +71,7 @@ echo [2/3] Starting Frontend - Vite doc-generator...
 start "Frontend - Vite" cmd /k "cd /d %ROOT%\artifacts\doc-generator && pnpm dev || (echo. & echo [ERROR] Frontend failed - see above & pause)"
 
 echo [3/3] Starting API Server - Express...
-start "API Server - Express" cmd /k "cd /d %ROOT%\artifacts\api-server && set NODE_ENV=development && pnpm exec tsx ./src/index.ts || (echo. & echo [ERROR] API Server failed - see above & pause)"
+start "API Server - Express" cmd /k "cd /d %ROOT%\artifacts\api-server && set NODE_ENV=development && set PORT=3000 && pnpm exec tsx ./src/index.ts || (echo. & echo [ERROR] API Server failed - see above & pause)"
 
 echo.
 echo ============================================

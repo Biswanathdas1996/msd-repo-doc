@@ -5,6 +5,7 @@ description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
+    "python-dotenv>=1.1.0",
     "fpdf2>=2.8.7",
     "httpx>=0.28.1",
     "lxml>=6.0.2",
