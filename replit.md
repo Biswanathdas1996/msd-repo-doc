@@ -70,7 +70,7 @@ artifacts-monorepo/
 ## Key Endpoints (Python FastAPI at /py-api)
 
 - `GET /py-api/healthz` - Health check
-- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data)
+- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB)
 - `GET /py-api/solutions` - List solutions
 - `GET /py-api/solutions/{id}` - Solution details
 - `DELETE /py-api/solutions/{id}` - Delete solution
@@ -82,6 +82,8 @@ artifacts-monorepo/
 - `POST /py-api/solutions/{id}/generate-docs` - Generate AI documentation
 - `GET /py-api/solutions/{id}/docs` - Get generated docs
 - `POST /py-api/solutions/{id}/verify` - Verify docs against knowledge graph
+- `GET /py-api/solutions/{id}/download/docx` - Download docs as Word (.docx)
+- `GET /py-api/solutions/{id}/download/pdf` - Download docs as PDF
 - `POST /py-api/solutions/{id}/reprocess` - Re-run parser + knowledge graph builder on existing source files (useful after parser changes)
 
 ## Input Formats Supported
@@ -110,7 +112,7 @@ artifacts-monorepo/
 - **Dashboard**: Solution list with stats, upload dialog
 - **Solution Detail**: Tabbed view with Overview, Knowledge Graph, Entities, Workflows, Plugins, AI Documentation
 - **Knowledge Graph Viewer**: Interactive node-based visualization using @xyflow/react
-- **AI Documentation**: Section selector, AI generation, markdown preview, verification
+- **AI Documentation**: Section selector, AI generation, markdown preview, verification, Word/PDF download
 
 ## Environment Variables
 

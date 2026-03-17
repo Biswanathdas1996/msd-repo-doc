@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import tempfile
@@ -6,6 +7,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.schemas import (
@@ -18,12 +20,15 @@ from backend.services.extractor import extract_solution
 from backend.services.github_downloader import download_github_repo
 from backend.services.xml_parser import (
     parse_solution_xml, parse_entity_file, parse_workflow_file,
-    parse_plugin_file, parse_form_files
+    parse_plugin_file, parse_form_files,
+    parse_ax_class_file, parse_ax_table_file, parse_ax_view_file,
+    ax_classes_to_plugins
 )
 from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
 from backend.services.ai_reasoning import generate_documentation, verify_documentation
+from backend.services.doc_exporter import export_to_docx, export_to_pdf
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -124,6 +129,34 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
             sol_metadata = source_info
         else:
             sol_metadata.update(source_info)
+    elif structure.get("is_ax_fo", False):
+        ax_classes_data = []
+        for cf in structure.get("ax_classes", []):
+            ax_classes_data.append(parse_ax_class_file(cf))
+
+        for tf in structure.get("ax_tables", []):
+            entities.append(parse_ax_table_file(tf))
+
+        for vf in structure.get("ax_views", []):
+            entities.append(parse_ax_view_file(vf))
+
+        for de in structure.get("ax_data_entities", []):
+            entities.append(parse_ax_table_file(de))
+
+        plugins.extend(ax_classes_to_plugins(ax_classes_data))
+
+        for wf in structure.get("workflows", []):
+            workflows.extend(parse_workflow_file(wf))
+
+        forms = parse_form_files(structure.get("forms", []))
+
+        if not sol_metadata:
+            sol_metadata = {}
+        sol_metadata["type"] = "ax_fo"
+        sol_metadata["description"] = "Dynamics 365 Finance & Operations (X++) solution"
+        sol_metadata["ax_class_count"] = len(ax_classes_data)
+        sol_metadata["ax_table_count"] = len(structure.get("ax_tables", []))
+        sol_metadata["ax_view_count"] = len(structure.get("ax_views", []))
     else:
         for ef in structure.get("entities", []):
             entities.extend(parse_entity_file(ef))
@@ -189,12 +222,21 @@ async def upload_solution(
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    MAX_UPLOAD_SIZE = 100 * 1024 * 1024
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
+    CHUNK_SIZE = 8 * 1024 * 1024
+
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        content = await file.read()
-        if len(content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(status_code=400, detail="File too large. Max 100MB.")
-        tmp.write(content)
+        total_written = 0
+        while True:
+            chunk = await file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            total_written += len(chunk)
+            if total_written > MAX_UPLOAD_SIZE:
+                tmp.close()
+                os.unlink(tmp.name)
+                raise HTTPException(status_code=400, detail="File too large. Max 10GB.")
+            tmp.write(chunk)
         tmp_path = tmp.name
 
     solution_name = name or file.filename or ""
@@ -383,6 +425,35 @@ def verify_docs(sol_id: str):
         _save_solution_metadata(sol_id, data)
 
     return result
+
+
+@app.get("/solutions/{sol_id}/download/{fmt}")
+def download_docs(sol_id: str, fmt: str):
+    data = _get_solution_or_404(sol_id)
+    if not data.get("docs"):
+        raise HTTPException(status_code=404, detail="Documentation not yet generated")
+
+    docs = GeneratedDocs(**data["docs"])
+    solution_name = data.get("name", "Solution")
+    safe_name = re.sub(r"[^\w\s-]", "", solution_name).strip().replace(" ", "_")
+    sections_data = [s.model_dump() for s in docs.sections]
+
+    if fmt == "docx":
+        content = export_to_docx(sections_data, solution_name)
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Documentation.docx"'},
+        )
+    elif fmt == "pdf":
+        content = export_to_pdf(sections_data, solution_name)
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_Documentation.pdf"'},
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported format. Use 'docx' or 'pdf'.")
 
 
 if __name__ == "__main__":

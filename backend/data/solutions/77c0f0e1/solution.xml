@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml>
+  <SolutionManifest>
+    <UniqueName>CustomerOnboarding</UniqueName>
+    <Version>1.2.3.4</Version>
+    <Descriptions>
+      <Description description="Customer onboarding and management solution for enterprise CRM"/>
+    </Descriptions>
+  </SolutionManifest>
+</ImportExportXml>

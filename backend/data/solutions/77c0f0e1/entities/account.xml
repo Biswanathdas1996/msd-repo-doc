@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Entity Name="Account">
+  <DisplayName>Account</DisplayName>
+  <Attributes>
+    <Attribute Name="accountname" Type="String" Required="true">
+      <DisplayName>Account Name</DisplayName>
+    </Attribute>
+    <Attribute Name="emailaddress1" Type="String" Required="true">
+      <DisplayName>Email Address</DisplayName>
+    </Attribute>
+    <Attribute Name="telephone1" Type="String">
+      <DisplayName>Phone Number</DisplayName>
+    </Attribute>
+    <Attribute Name="statuscode" Type="Picklist" Required="true">
+      <DisplayName>Status</DisplayName>
+    </Attribute>
+    <Attribute Name="address1_city" Type="String">
+      <DisplayName>City</DisplayName>
+    </Attribute>
+    <Attribute Name="revenue" Type="Money">
+      <DisplayName>Annual Revenue</DisplayName>
+    </Attribute>
+    <Attribute Name="ownerid" Type="Lookup" Required="true">
+      <DisplayName>Owner</DisplayName>
+    </Attribute>
+  </Attributes>
+</Entity>
