@@ -1,0 +1,517 @@
+{
+  "id": "742e0ba6",
+  "name": "MSD test_solution",
+  "uploadedAt": "2026-03-17T11:25:30.131425+00:00",
+  "status": "ready",
+  "entityCount": 3,
+  "workflowCount": 3,
+  "pluginCount": 3,
+  "formCount": 3,
+  "roleCount": 0,
+  "webResourceCount": 0,
+  "hasDocumentation": true,
+  "metadata": {
+    "solutionVersion": "1.2.3.4",
+    "publisher": "CustomerOnboarding",
+    "description": "Customer onboarding and management solution for enterprise CRM"
+  },
+  "entities": [
+    {
+      "name": "Account",
+      "displayName": "Account",
+      "fields": [
+        {
+          "name": "accountname",
+          "type": "String",
+          "displayName": "Account Name",
+          "required": true
+        },
+        {
+          "name": "emailaddress1",
+          "type": "String",
+          "displayName": "Email Address",
+          "required": true
+        },
+        {
+          "name": "telephone1",
+          "type": "String",
+          "displayName": "Phone Number",
+          "required": false
+        },
+        {
+          "name": "statuscode",
+          "type": "Picklist",
+          "displayName": "Status",
+          "required": true
+        },
+        {
+          "name": "address1_city",
+          "type": "String",
+          "displayName": "City",
+          "required": false
+        },
+        {
+          "name": "revenue",
+          "type": "Money",
+          "displayName": "Annual Revenue",
+          "required": false
+        },
+        {
+          "name": "ownerid",
+          "type": "Lookup",
+          "displayName": "Owner",
+          "required": true
+        }
+      ],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "Contact",
+      "displayName": "Contact",
+      "fields": [
+        {
+          "name": "firstname",
+          "type": "String",
+          "displayName": "First Name",
+          "required": true
+        },
+        {
+          "name": "lastname",
+          "type": "String",
+          "displayName": "Last Name",
+          "required": true
+        },
+        {
+          "name": "emailaddress1",
+          "type": "String",
+          "displayName": "Email",
+          "required": false
+        },
+        {
+          "name": "telephone1",
+          "type": "String",
+          "displayName": "Phone",
+          "required": false
+        },
+        {
+          "name": "parentcustomerid",
+          "type": "Lookup",
+          "displayName": "Parent Account",
+          "required": false
+        },
+        {
+          "name": "jobtitle",
+          "type": "String",
+          "displayName": "Job Title",
+          "required": false
+        }
+      ],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    },
+    {
+      "name": "Opportunity",
+      "displayName": "Opportunity",
+      "fields": [
+        {
+          "name": "name",
+          "type": "String",
+          "displayName": "Opportunity Name",
+          "required": true
+        },
+        {
+          "name": "estimatedvalue",
+          "type": "Money",
+          "displayName": "Estimated Value",
+          "required": false
+        },
+        {
+          "name": "closeprobability",
+          "type": "Integer",
+          "displayName": "Close Probability",
+          "required": false
+        },
+        {
+          "name": "customerid",
+          "type": "Lookup",
+          "displayName": "Customer",
+          "required": true
+        },
+        {
+          "name": "statuscode",
+          "type": "Picklist",
+          "displayName": "Status",
+          "required": true
+        },
+        {
+          "name": "estimatedclosedate",
+          "type": "DateTime",
+          "displayName": "Estimated Close Date",
+          "required": false
+        }
+      ],
+      "forms": [],
+      "workflows": [],
+      "plugins": []
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Account Approval Workflow",
+      "triggerEntity": "Account",
+      "trigger": "Update",
+      "steps": [
+        "Validate account data",
+        "Check approval threshold",
+        "Route to manager for approval",
+        "Send approval notification email",
+        "Update account status"
+      ],
+      "plugins": [],
+      "conditions": [
+        "Revenue exceeds $100,000",
+        "Account status is Active"
+      ],
+      "relatedEntities": []
+    },
+    {
+      "name": "Opportunity Pipeline Process",
+      "triggerEntity": "Opportunity",
+      "trigger": "Create",
+      "steps": [
+        "Qualify lead source",
+        "Assign sales representative",
+        "Create follow-up task",
+        "Send welcome email to customer",
+        "Schedule initial meeting"
+      ],
+      "plugins": [],
+      "conditions": [
+        "Estimated value above minimum",
+        "Valid customer reference"
+      ],
+      "relatedEntities": []
+    },
+    {
+      "name": "Contact Synchronization",
+      "triggerEntity": "Contact",
+      "trigger": "Update",
+      "steps": [
+        "Detect field changes",
+        "Sync to external CRM",
+        "Update audit log",
+        "Notify account manager"
+      ],
+      "plugins": [],
+      "conditions": [],
+      "relatedEntities": []
+    }
+  ],
+  "plugins": [
+    {
+      "name": "AccountValidationPlugin",
+      "triggerEntity": "Account",
+      "operation": "Update",
+      "stage": "Pre-operation",
+      "description": "Validates account data before update operations including revenue checks and duplicate detection"
+    },
+    {
+      "name": "OpportunityScoringPlugin",
+      "triggerEntity": "Opportunity",
+      "operation": "Create",
+      "stage": "Post-operation",
+      "description": "Automatically scores opportunities based on customer history and deal parameters"
+    },
+    {
+      "name": "NotificationServicePlugin",
+      "triggerEntity": "Account",
+      "operation": "Update",
+      "stage": "Post-operation",
+      "description": "Sends notifications to relevant stakeholders when account data changes"
+    }
+  ],
+  "forms": [
+    "Account Main Form",
+    "Account Quick Create",
+    "Contact Main Form"
+  ],
+  "knowledge_graph": {
+    "entities": {
+      "Account": {
+        "fields": [
+          "accountname",
+          "emailaddress1",
+          "telephone1",
+          "statuscode",
+          "address1_city",
+          "revenue",
+          "ownerid"
+        ],
+        "forms": [
+          "Account Main Form",
+          "Account Quick Create"
+        ],
+        "workflows": [
+          "Account Approval Workflow"
+        ],
+        "plugins": [
+          "AccountValidationPlugin",
+          "NotificationServicePlugin"
+        ]
+      },
+      "Contact": {
+        "fields": [
+          "firstname",
+          "lastname",
+          "emailaddress1",
+          "telephone1",
+          "parentcustomerid",
+          "jobtitle"
+        ],
+        "forms": [
+          "Contact Main Form"
+        ],
+        "workflows": [
+          "Contact Synchronization"
+        ],
+        "plugins": []
+      },
+      "Opportunity": {
+        "fields": [
+          "name",
+          "estimatedvalue",
+          "closeprobability",
+          "customerid",
+          "statuscode",
+          "estimatedclosedate"
+        ],
+        "forms": [],
+        "workflows": [
+          "Opportunity Pipeline Process"
+        ],
+        "plugins": [
+          "OpportunityScoringPlugin"
+        ]
+      }
+    },
+    "workflows": {
+      "Account Approval Workflow": {
+        "trigger": "Update",
+        "triggerEntity": "Account",
+        "steps": [
+          "Validate account data",
+          "Check approval threshold",
+          "Route to manager for approval",
+          "Send approval notification email",
+          "Update account status"
+        ],
+        "plugins": [
+          "AccountValidationPlugin",
+          "NotificationServicePlugin"
+        ],
+        "relatedEntities": []
+      },
+      "Opportunity Pipeline Process": {
+        "trigger": "Create",
+        "triggerEntity": "Opportunity",
+        "steps": [
+          "Qualify lead source",
+          "Assign sales representative",
+          "Create follow-up task",
+          "Send welcome email to customer",
+          "Schedule initial meeting"
+        ],
+        "plugins": [
+          "OpportunityScoringPlugin"
+        ],
+        "relatedEntities": []
+      },
+      "Contact Synchronization": {
+        "trigger": "Update",
+        "triggerEntity": "Contact",
+        "steps": [
+          "Detect field changes",
+          "Sync to external CRM",
+          "Update audit log",
+          "Notify account manager"
+        ],
+        "plugins": [],
+        "relatedEntities": []
+      }
+    },
+    "plugins": {
+      "AccountValidationPlugin": {
+        "triggerEntity": "Account",
+        "operation": "Update",
+        "stage": "Pre-operation"
+      },
+      "OpportunityScoringPlugin": {
+        "triggerEntity": "Opportunity",
+        "operation": "Create",
+        "stage": "Post-operation"
+      },
+      "NotificationServicePlugin": {
+        "triggerEntity": "Account",
+        "operation": "Update",
+        "stage": "Post-operation"
+      }
+    },
+    "relationships": [
+      {
+        "source": "Account",
+        "target": "Account Approval Workflow",
+        "type": "triggers"
+      },
+      {
+        "source": "Opportunity",
+        "target": "Opportunity Pipeline Process",
+        "type": "triggers"
+      },
+      {
+        "source": "Contact",
+        "target": "Contact Synchronization",
+        "type": "triggers"
+      },
+      {
+        "source": "Account",
+        "target": "AccountValidationPlugin",
+        "type": "uses_plugin"
+      },
+      {
+        "source": "Opportunity",
+        "target": "OpportunityScoringPlugin",
+        "type": "uses_plugin"
+      },
+      {
+        "source": "Account",
+        "target": "NotificationServicePlugin",
+        "type": "uses_plugin"
+      },
+      {
+        "source": "Account Approval Workflow",
+        "target": "AccountValidationPlugin",
+        "type": "invokes"
+      },
+      {
+        "source": "Account Approval Workflow",
+        "target": "NotificationServicePlugin",
+        "type": "invokes"
+      },
+      {
+        "source": "Opportunity Pipeline Process",
+        "target": "OpportunityScoringPlugin",
+        "type": "invokes"
+      },
+      {
+        "source": "Account",
+        "target": "Account Main Form",
+        "type": "has_form"
+      },
+      {
+        "source": "Account",
+        "target": "Account Quick Create",
+        "type": "has_form"
+      },
+      {
+        "source": "Contact",
+        "target": "Contact Main Form",
+        "type": "has_form"
+      }
+    ]
+  },
+  "functional_flows": [
+    {
+      "entity": "Account",
+      "workflow": "Account Approval Workflow",
+      "plugins": [
+        "AccountValidationPlugin",
+        "NotificationServicePlugin"
+      ],
+      "steps": [
+        "User performs Update on Account",
+        "Account Approval Workflow triggered",
+        "Validate account data",
+        "Check approval threshold",
+        "Route to manager for approval",
+        "Send approval notification email",
+        "Update account status",
+        "AccountValidationPlugin executed (Update)",
+        "NotificationServicePlugin executed (Update)"
+      ],
+      "description": "When Account is modified, Account Approval Workflow is triggered, invoking AccountValidationPlugin, NotificationServicePlugin"
+    },
+    {
+      "entity": "Contact",
+      "workflow": "Contact Synchronization",
+      "plugins": [],
+      "steps": [
+        "User performs Update on Contact",
+        "Contact Synchronization triggered",
+        "Detect field changes",
+        "Sync to external CRM",
+        "Update audit log",
+        "Notify account manager"
+      ],
+      "description": "When Contact is modified, Contact Synchronization is triggered"
+    },
+    {
+      "entity": "Opportunity",
+      "workflow": "Opportunity Pipeline Process",
+      "plugins": [
+        "OpportunityScoringPlugin"
+      ],
+      "steps": [
+        "User performs Create on Opportunity",
+        "Opportunity Pipeline Process triggered",
+        "Qualify lead source",
+        "Assign sales representative",
+        "Create follow-up task",
+        "Send welcome email to customer",
+        "Schedule initial meeting",
+        "OpportunityScoringPlugin executed (Create)"
+      ],
+      "description": "When Opportunity is modified, Opportunity Pipeline Process is triggered, invoking OpportunityScoringPlugin"
+    }
+  ],
+  "docs": {
+    "solutionId": "742e0ba6",
+    "generatedAt": "2026-03-17T11:25:45.296782+00:00",
+    "sections": [
+      {
+        "title": "Solution Overview",
+        "slug": "solution_overview",
+        "content": "# Solution Overview\n\nDocumentation generation encountered an error: PWC_GENAI_ENDPOINT_URL not configured",
+        "order": 0
+      },
+      {
+        "title": "Technical Architecture",
+        "slug": "technical_architecture",
+        "content": "# Technical Architecture\n\nDocumentation generation encountered an error: PWC_GENAI_ENDPOINT_URL not configured",
+        "order": 1
+      },
+      {
+        "title": "Entity Documentation",
+        "slug": "entity_documentation",
+        "content": "# Entity Documentation\n\nDocumentation generation encountered an error: PWC_GENAI_ENDPOINT_URL not configured",
+        "order": 2
+      },
+      {
+        "title": "Workflow Documentation",
+        "slug": "workflow_documentation",
+        "content": "# Workflow Documentation\n\nDocumentation generation encountered an error: PWC_GENAI_ENDPOINT_URL not configured",
+        "order": 3
+      },
+      {
+        "title": "Functional Flows",
+        "slug": "functional_flows",
+        "content": "# Functional Flows\n\nDocumentation generation encountered an error: PWC_GENAI_ENDPOINT_URL not configured",
+        "order": 4
+      }
+    ],
+    "verified": false
+  },
+  "output_folder": "/home/runner/workspace/backend/data/solutions/742e0ba6"
+}
