@@ -49,7 +49,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "class-variance-authority": "catalog:",
@@ -82,7 +81,6 @@
     "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
     "react-markdown": "^10.1.0",
-    "react-syntax-highlighter": "^16.1.1",
     "remark-gfm": "^4.0.1"
   }
 }

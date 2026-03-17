@@ -12,7 +12,7 @@ import {
   useVerifyDocumentation
 } from "@/hooks/use-solutions";
 import { KnowledgeGraphViewer } from "@/components/KnowledgeGraphViewer";
-import { MarkdownViewer } from "@/components/MarkdownViewer";
+import { MarkdownViewer, CollapsibleSection } from "@/components/MarkdownViewer";
 import { format } from "date-fns";
 import { 
   ArrowLeft, Database, Zap, Settings, Share2, FileText, 
@@ -58,12 +58,12 @@ export default function SolutionDetail() {
   const { toast } = useToast();
 
   const { data: solution, isLoading: isLoadingSolution } = useSolutionDetails(id);
-  const { data: graph } = useKnowledgeGraph(id);
-  const { data: entities } = useEntities(id);
-  const { data: workflows } = useWorkflows(id);
-  const { data: plugins } = usePlugins(id);
-  const { data: flows } = useFunctionalFlows(id);
-  const { data: docs, isLoading: isLoadingDocs } = useDocs(id);
+  const { data: graph } = useKnowledgeGraph(id, activeTab === 'graph');
+  const { data: entities } = useEntities(id, activeTab === 'entities');
+  const { data: workflows } = useWorkflows(id, activeTab === 'workflows');
+  const { data: plugins } = usePlugins(id, activeTab === 'plugins');
+  const { data: flows } = useFunctionalFlows(id, activeTab === 'overview');
+  const { data: docs, isLoading: isLoadingDocs } = useDocs(id, activeTab === 'docs');
   
   const generateMutation = useGenerateDocumentation();
   const verifyMutation = useVerifyDocumentation();
@@ -544,12 +544,21 @@ export default function SolutionDetail() {
                   </div>
                 ) : null}
 
-                {docs ? (
-                  <div className="space-y-12">
-                    {docs.sections.sort((a,b)=>a.order-b.order).map(section => (
-                      <div key={section.slug} id={section.slug}>
-                        <MarkdownViewer content={section.content} />
-                      </div>
+                {isLoadingDocs ? (
+                  <div className="h-full flex flex-col items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                    <p className="text-muted-foreground text-sm">Loading documentation...</p>
+                  </div>
+                ) : docs ? (
+                  <div className="space-y-3">
+                    {[...docs.sections].sort((a,b)=>a.order-b.order).map((section, idx) => (
+                      <CollapsibleSection
+                        key={section.slug}
+                        title={section.title}
+                        slug={section.slug}
+                        content={section.content}
+                        defaultOpen={idx === 0}
+                      />
                     ))}
                   </div>
                 ) : (

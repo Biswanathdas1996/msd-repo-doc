@@ -1,29 +1,25 @@
+import { memo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface MarkdownViewerProps {
   content: string;
 }
 
-export function MarkdownViewer({ content }: MarkdownViewerProps) {
+export const MarkdownViewer = memo(function MarkdownViewer({ content }: MarkdownViewerProps) {
   return (
     <div className="prose prose-invert prose-slate max-w-none w-full">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           code({ node, inline, className, children, ...props }: any) {
-            const match = /language-(\w+)/.exec(className || '');
-            return !inline && match ? (
-              <SyntaxHighlighter
-                {...props}
-                children={String(children).replace(/\n$/, '')}
-                style={vscDarkPlus as any}
-                language={match[1]}
-                PreTag="div"
-                className="rounded-xl border border-border !bg-[#0d1117] !my-6"
-              />
+            const isBlock = !inline && (className || String(children).includes('\n'));
+            return isBlock ? (
+              <pre className="rounded-xl border border-border bg-[#0d1117] p-4 my-6 overflow-x-auto">
+                <code {...props} className="text-sm text-slate-300 font-mono">
+                  {children}
+                </code>
+              </pre>
             ) : (
               <code {...props} className={`${className} bg-muted px-1.5 py-0.5 rounded-md text-blue-300`}>
                 {children}
@@ -48,4 +44,45 @@ export function MarkdownViewer({ content }: MarkdownViewerProps) {
       </ReactMarkdown>
     </div>
   );
+});
+
+interface CollapsibleSectionProps {
+  title: string;
+  slug: string;
+  content: string;
+  defaultOpen?: boolean;
 }
+
+export const CollapsibleSection = memo(function CollapsibleSection({ title, slug, content, defaultOpen = false }: CollapsibleSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const charCount = content?.length || 0;
+
+  const toggle = useCallback(() => setIsOpen(prev => !prev), []);
+
+  return (
+    <div id={slug} className="border border-border/50 rounded-xl overflow-hidden">
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between p-4 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3">
+          <svg
+            className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="font-semibold text-foreground">{title}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {charCount > 1000 ? `${Math.round(charCount / 1000)}k chars` : `${charCount} chars`}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="p-6 border-t border-border/30">
+          <MarkdownViewer content={content} />
+        </div>
+      )}
+    </div>
+  );
+});

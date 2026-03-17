@@ -15,12 +15,10 @@ import {
   useVerifyDocs,
 } from "@workspace/api-client-react";
 
-// Wrapper hooks to handle standard cache invalidation and provide a unified API surface
-
 export function useSolutions() {
   return useListSolutions({
     query: {
-      refetchInterval: 10000, // Poll every 10s for status updates
+      refetchInterval: 10000,
     }
   });
 }
@@ -30,7 +28,6 @@ export function useSolutionDetails(id: string) {
     query: {
       enabled: !!id,
       refetchInterval: (query) => {
-        // Stop polling if status is ready or error
         const status = query.state.data?.status;
         if (status === 'ready' || status === 'error') return false;
         return 5000;
@@ -73,28 +70,28 @@ export function useDelete() {
   });
 }
 
-export function useKnowledgeGraph(id: string) {
-  return useGetKnowledgeGraph(id, { query: { enabled: !!id } });
+export function useKnowledgeGraph(id: string, enabled: boolean = true) {
+  return useGetKnowledgeGraph(id, { query: { enabled: !!id && enabled } });
 }
 
-export function useEntities(id: string) {
-  return useGetEntities(id, { query: { enabled: !!id } });
+export function useEntities(id: string, enabled: boolean = true) {
+  return useGetEntities(id, { query: { enabled: !!id && enabled } });
 }
 
-export function useWorkflows(id: string) {
-  return useGetWorkflows(id, { query: { enabled: !!id } });
+export function useWorkflows(id: string, enabled: boolean = true) {
+  return useGetWorkflows(id, { query: { enabled: !!id && enabled } });
 }
 
-export function usePlugins(id: string) {
-  return useGetPlugins(id, { query: { enabled: !!id } });
+export function usePlugins(id: string, enabled: boolean = true) {
+  return useGetPlugins(id, { query: { enabled: !!id && enabled } });
 }
 
-export function useFunctionalFlows(id: string) {
-  return useGetFunctionalFlows(id, { query: { enabled: !!id } });
+export function useFunctionalFlows(id: string, enabled: boolean = true) {
+  return useGetFunctionalFlows(id, { query: { enabled: !!id && enabled } });
 }
 
-export function useDocs(id: string) {
-  return useGetDocs(id, { query: { enabled: !!id, retry: false } });
+export function useDocs(id: string, enabled: boolean = true) {
+  return useGetDocs(id, { query: { enabled: !!id && enabled, retry: false } });
 }
 
 export function useGenerateDocumentation() {
