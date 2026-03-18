@@ -110,7 +110,7 @@ artifacts-monorepo/
 - `artifacts/doc-generator: web` - React frontend
 - `artifacts/api-server: API Server` - Express health check
 
-## Documentation Sections (11 sections, 3 groups)
+## Documentation Sections (15 sections, 7 groups)
 
 1. **Overview**
    - 1.1 Purpose of the Document (`doc_purpose`)
@@ -126,6 +126,10 @@ artifacts-monorepo/
    - 3.3 Forms (`forms`)
    - 3.4 Classes (`classes`)
    - 3.5 Digital Signature Utility (`digital_signature_utility`)
+4. **Component Overview** (`component_overview`)
+5. **How Everything Links Together** (`how_everything_links`)
+6. **Features** (`feature_list`)
+7. **Feature Flows** (`feature_flows`)
 
 ## Frontend Pages
 

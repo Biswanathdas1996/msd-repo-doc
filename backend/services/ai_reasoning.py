@@ -485,6 +485,122 @@ SECTION_CONFIGS = {
             "- Do NOT fabricate digital signature capabilities."
         ),
     },
+    # ===== 4. Component Overview =====
+    "component_overview": {
+        "title": "4. Component Overview",
+        "order": 12,
+        "prompt": (
+            "Generate a 'Component Overview' section for this solution.\n\n"
+            "Provide a comprehensive overview of every component in the solution. "
+            "Group them by type (Entities/Tables, Plugins/Classes, Workflows, Forms, "
+            "Web Resources, Security Roles, Reports, etc.).\n\n"
+            "### Component Inventory\n"
+            "| # | Component Name | Type | Purpose | Status (Custom / Extended / Standard) |\n\n"
+            "### Component Statistics\n"
+            "Provide a summary table with counts:\n"
+            "| Component Type | Count | Custom | Extended |\n\n"
+            "### Key Components\n"
+            "Highlight the most important components (those with the most relationships "
+            "or that serve as central integration points) and explain their significance "
+            "in 1-2 sentences each.\n\n"
+            "RULES:\n"
+            "- List EVERY component found in the metadata — nothing should be omitted.\n"
+            "- Use EXACT component names from the metadata.\n"
+            "- Derive purpose descriptions from component names and relationships only.\n"
+            "- Do NOT fabricate components or capabilities."
+        ),
+    },
+    # ===== 5. How Everything Links Together =====
+    "how_everything_links": {
+        "title": "5. How Everything Links Together",
+        "order": 13,
+        "prompt": (
+            "Generate a 'How Everything Links Together' section for this solution.\n\n"
+            "Analyze the relationships between ALL components and explain how the solution "
+            "works as a cohesive whole.\n\n"
+            "### Relationship Map\n"
+            "Generate a Mermaid diagram (`flowchart LR`) showing how the major components "
+            "connect to each other:\n"
+            "- Entities linked to their plugins and workflows\n"
+            "- Forms linked to their backing entities\n"
+            "- Plugins linked to other plugins they depend on\n"
+            "- Use QUOTED labels: `nodeId[\"Label text\"]`\n"
+            "- NEVER use `{{ }}` or `<br>` in labels\n"
+            "- Wrap in a ```mermaid code fence\n\n"
+            "### Integration Points\n"
+            "| Source Component | Target Component | Relationship Type | Description |\n\n"
+            "### Data Flow Summary\n"
+            "Describe the end-to-end data flow through the solution: \n"
+            "where data enters, how it is processed by plugins/classes, "
+            "which workflows act on it, and where results are stored or displayed.\n\n"
+            "### Dependency Chain\n"
+            "List the critical dependency chains — if component A depends on B which depends on C, "
+            "show those chains so developers understand the impact of changes.\n\n"
+            "RULES:\n"
+            "- Base ALL relationships on actual metadata — do NOT invent connections.\n"
+            "- Use EXACT component names.\n"
+            "- Keep the Mermaid diagram clean and readable."
+        ),
+    },
+    # ===== 6. Features =====
+    "feature_list": {
+        "title": "6. Features",
+        "order": 14,
+        "prompt": (
+            "Generate a 'Features' section with a comprehensive Feature List for this solution.\n\n"
+            "Analyze all components (entities, plugins, workflows, forms, web resources, roles) "
+            "and derive the distinct features / capabilities this solution provides.\n\n"
+            "### Feature List\n"
+            "| # | Feature Name | Description | Components Involved | Category |\n\n"
+            "Group features by category (e.g., Data Management, Automation, Reporting, "
+            "Security, Integration, User Interface).\n\n"
+            "### Feature Details\n"
+            "For each feature, provide:\n"
+            "#### [Feature Name]\n"
+            "- **Category**: (e.g., Data Management, Automation)\n"
+            "- **Description**: 2-3 sentences explaining what this feature does for the business\n"
+            "- **Components**: List the specific entities, plugins, workflows involved\n"
+            "- **User Impact**: How end-users interact with or benefit from this feature\n\n"
+            "RULES:\n"
+            "- Derive features ONLY from actual components in the metadata.\n"
+            "- Use EXACT component names when referencing them.\n"
+            "- Each feature must be traceable to at least one component.\n"
+            "- Do NOT fabricate features that have no supporting components."
+        ),
+    },
+    # ===== 7. Feature Flows =====
+    "feature_flows": {
+        "title": "7. Feature Flows",
+        "order": 15,
+        "prompt": (
+            "Generate a 'Feature Flows' section documenting how each feature operates end-to-end.\n\n"
+            "For EACH major feature identified in the solution, create a detailed flow:\n\n"
+            "### Feature Flow: [Feature Name]\n"
+            "- **Trigger**: What initiates this feature (user action, system event, scheduled job)\n"
+            "- **Preconditions**: What must be true before this feature executes\n"
+            "- **Flow Steps**:\n"
+            "| Step # | Action | Component | Input | Output |\n"
+            "- **Postconditions**: What is true after the feature completes\n"
+            "- **Error Handling**: How failures are handled (if detectable from metadata)\n\n"
+            "### Mermaid Sequence Diagram\n"
+            "For each major feature, generate a Mermaid sequence diagram:\n"
+            "```mermaid\n"
+            "sequenceDiagram\n"
+            "    participant User\n"
+            "    participant Form\n"
+            "    participant Plugin\n"
+            "    participant Entity\n"
+            "```\n\n"
+            "Show the interaction between the user, forms, plugins/classes, and entities/tables "
+            "for each feature flow.\n\n"
+            "RULES:\n"
+            "- Base ALL flows on actual component relationships in the metadata.\n"
+            "- Use EXACT component names.\n"
+            "- Use QUOTED labels in Mermaid: `nodeId[\"Label text\"]`\n"
+            "- NEVER use `{{ }}` or `<br>` in Mermaid labels.\n"
+            "- Do NOT fabricate processing steps — describe at the component interaction level."
+        ),
+    },
 }
 
 
@@ -579,7 +695,7 @@ def _has_real_plugin_descriptions(graph: KnowledgeGraph) -> bool:
 def _check_section_suppression(section_key: str, graph: KnowledgeGraph) -> str | None:
     """Return minimal content string if section should be suppressed, None otherwise.
 
-    With the 11-section / 3-group documentation structure, all sections are always generated.
+    With the 15-section / 7-group documentation structure, all sections are always generated.
     """
     return None
 

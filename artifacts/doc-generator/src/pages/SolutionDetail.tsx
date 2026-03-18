@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-// All 11 documentation sections across 3 groups
+// All 15 documentation sections across 7 groups
 const ALL_DOC_SECTIONS = [
   { key: "doc_purpose", label: "1.1 Purpose of the Document", order: 1, group: "1. Overview" },
   { key: "intended_audience", label: "1.2 Intended Audience", order: 2, group: "1. Overview" },
@@ -36,6 +36,10 @@ const ALL_DOC_SECTIONS = [
   { key: "forms", label: "3.3 Forms", order: 9, group: "3. Detailed Technical Design" },
   { key: "classes", label: "3.4 Classes", order: 10, group: "3. Detailed Technical Design" },
   { key: "digital_signature_utility", label: "3.5 Digital Signature Utility", order: 11, group: "3. Detailed Technical Design" },
+  { key: "component_overview", label: "4. Component Overview", order: 12, group: "4. Component Overview" },
+  { key: "how_everything_links", label: "5. How Everything Links Together", order: 13, group: "5. How Everything Links Together" },
+  { key: "feature_list", label: "6. Features", order: 14, group: "6. Features" },
+  { key: "feature_flows", label: "7. Feature Flows", order: 15, group: "7. Feature Flows" },
 ];
 
 const TABS = [
