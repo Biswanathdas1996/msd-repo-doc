@@ -23,12 +23,19 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-// All 4 documentation sections
+// All 11 documentation sections across 3 groups
 const ALL_DOC_SECTIONS = [
-  { key: "component_overview", label: "Component Overview", order: 1, group: "Overview" },
-  { key: "component_linkage", label: "How Everything Links Together", order: 2, group: "Overview" },
-  { key: "feature_list", label: "Feature List", order: 3, group: "Features" },
-  { key: "feature_flows", label: "Feature Flows", order: 4, group: "Features" },
+  { key: "doc_purpose", label: "1.1 Purpose of the Document", order: 1, group: "1. Overview" },
+  { key: "intended_audience", label: "1.2 Intended Audience", order: 2, group: "1. Overview" },
+  { key: "requirement_description", label: "2.1 Requirement Description", order: 3, group: "2. Design Overview" },
+  { key: "functional_design_overview", label: "2.2 Functional Design Overview", order: 4, group: "2. Design Overview" },
+  { key: "architectural_diagram", label: "2.3 Process Detailed Architectural Diagram", order: 5, group: "2. Design Overview" },
+  { key: "process_flow_description", label: "2.4 Process Flow Description", order: 6, group: "2. Design Overview" },
+  { key: "action_menu_items", label: "3.1 Action Menu Items", order: 7, group: "3. Detailed Technical Design" },
+  { key: "tables", label: "3.2 Tables", order: 8, group: "3. Detailed Technical Design" },
+  { key: "forms", label: "3.3 Forms", order: 9, group: "3. Detailed Technical Design" },
+  { key: "classes", label: "3.4 Classes", order: 10, group: "3. Detailed Technical Design" },
+  { key: "digital_signature_utility", label: "3.5 Digital Signature Utility", order: 11, group: "3. Detailed Technical Design" },
 ];
 
 const TABS = [

@@ -258,149 +258,231 @@ Return the COMPLETE set of relationships (existing + new)."""
 
 
 SECTION_CONFIGS = {
-    # --- 1. Component Overview ---
-    "component_overview": {
-        "title": "Component Overview",
+    # ===== 1. Overview =====
+    "doc_purpose": {
+        "title": "1.1 Purpose of the Document",
         "order": 1,
         "prompt": (
-            "Generate a COMPLETE Component Overview for this solution. "
-            "This section must list EVERY component found in the solution metadata so that "
-            "anyone reading it (including a non-technical person) knows exactly what building blocks exist.\n\n"
-            "### Solution Summary\n"
-            "State the solution name/type, total component counts from the knowledge graph summary "
-            "(entity_count, workflow_count, plugin_count, role_count, form_count, webresource_count). "
-            "Use the EXACT numbers — do not round or estimate.\n\n"
-            "### Tables / Entities / Views\n"
-            "List every entity/table/view in a table:\n"
-            "| # | Name | Display Name | Type (Table / View / Data Entity) | Field Count | Purpose (1 sentence based on name) |\n\n"
-            "### Classes / Plugins / Extensions\n"
-            "List every class, plugin, or extension in a table:\n"
-            "| # | Name | Type (Plugin / Extension / Controller / Contract / Service) | Target / Related Entity | Description |\n"
-            "For 'Description': use the metadata description if available; otherwise write a ONE-sentence purpose derived "
-            "strictly from the class name and its extension target — do NOT fabricate business logic.\n\n"
-            "### Reports\n"
-            "If any SSRS reports or report-related components exist, list them:\n"
-            "| # | Report Name | Data Source | Related Entities |\n\n"
-            "### Forms\n"
-            "| # | Form Name | Entity |\n"
-            "List ONLY forms present in the metadata.\n\n"
-            "### Security Roles\n"
-            "If any roles exist, list them; otherwise state 'No security roles detected.'\n\n"
-            "### Web Resources\n"
-            "If any exist, list them; otherwise state 'No web resources detected.'\n\n"
-            "RULES:\n"
-            "- Every single component in the metadata MUST appear in this section — nothing should be missing.\n"
-            "- Use the EXACT names from the metadata.\n"
-            "- Keep descriptions short and factual — do NOT invent business logic."
+            "Generate a 'Purpose of the Document' section for this Microsoft Dynamics solution technical design document.\n\n"
+            "Write 2-3 concise paragraphs covering:\n"
+            "- The purpose of this document (to describe the technical design of the solution)\n"
+            "- What the solution does at a high level (derive from the component names and metadata)\n"
+            "- What this document covers (entities/tables, workflows, plugins/classes, forms, security roles, integrations)\n\n"
+            "Keep it professional, concise, and formal — suitable for an enterprise technical design document.\n"
+            "Base ALL statements on the actual solution metadata provided. Do NOT fabricate capabilities."
         ),
     },
-    # --- 2. How Everything Links Together ---
-    "component_linkage": {
-        "title": "How Everything Links Together",
+    "intended_audience": {
+        "title": "1.2 Intended Audience",
         "order": 2,
         "prompt": (
-            "Generate a section that explains HOW all the components in this solution are connected to each other. "
-            "This section is written for a NON-TECHNICAL person — use simple, everyday language. "
-            "Avoid jargon. Imagine you are explaining this to a business manager who has never written code.\n\n"
-            "### Big Picture\n"
-            "Start with a 3-5 sentence plain-English summary of what this solution does overall, "
-            "based ONLY on the component names and their relationships in the metadata.\n\n"
-            "### How the Pieces Fit Together\n"
-            "For EACH logical group of related components, write a short paragraph (3-6 sentences) explaining:\n"
-            "- What the group is about (e.g., 'Inventory Aging Report' or 'SLM Integration')\n"
-            "- Which tables/entities store the data\n"
-            "- Which classes/plugins read or modify that data\n"
-            "- Which reports display that data\n"
-            "- How a user action (e.g., running a report, syncing data) flows through the components\n"
-            "Use analogies where helpful (e.g., 'Think of the Controller as the button that starts the process').\n\n"
-            "### Component Relationship Map\n"
-            "Create a simple table showing every connection between components:\n"
-            "| Component A | Relationship | Component B | What This Means (plain English) |\n"
-            "Examples of relationships: 'extends', 'reads data from', 'writes data to', 'controls', 'sends data to', 'receives data from'.\n\n"
-            "### Data Flow Summary\n"
-            "For each major data flow in the solution, describe it as a numbered sequence of simple steps:\n"
-            "1. User does X → 2. Component A processes it → 3. Data goes to B → 4. Result shown in C\n\n"
-            "RULES:\n"
-            "- Use ONLY component names from the metadata — do NOT invent components.\n"
-            "- Keep language simple — no technical terms like 'extension', 'class', 'method' without explaining them.\n"
-            "- Base relationships ONLY on what the metadata shows (extension targets, entity references, etc.).\n"
-            "- Do NOT fabricate business logic or detailed processing rules."
+            "Generate an 'Intended Audience' section for this technical design document.\n\n"
+            "List the target readers in a table:\n"
+            "| Role | Purpose |\n"
+            "Include roles such as: Solution Architects, Developers, Functional Consultants, "
+            "QA/Test Engineers, Project Managers, and Support Team.\n"
+            "For each role, write one sentence explaining why they would read this document.\n\n"
+            "Keep it concise and professional."
         ),
     },
-    # --- 3. Feature List ---
-    "feature_list": {
-        "title": "Feature List",
+    # ===== 2. Design Overview =====
+    "requirement_description": {
+        "title": "2.1 Requirement Description",
         "order": 3,
         "prompt": (
-            "Generate a complete FEATURE LIST for this solution. A 'feature' is a user-facing capability or "
-            "system capability that the solution provides — something a business person would recognize as useful.\n\n"
-            "Analyze ALL components in the metadata (entities, classes/plugins, reports, views, extensions) "
-            "and group them into distinct features.\n\n"
-            "### Feature Summary Table\n"
-            "| # | Feature Name | Description (1-2 sentences, non-technical) | Components Involved |\n\n"
-            "For each feature derive the name from the component names and their relationships. "
-            "The description should explain what value this feature provides in plain business language.\n"
-            "The 'Components Involved' column must list the EXACT component names from the metadata.\n\n"
-            "### Feature Details\n"
-            "For EACH feature identified above, create a sub-section:\n"
-            "#### Feature: [Feature Name]\n"
-            "- **What it does**: 2-3 sentences in plain English explaining the feature's purpose.\n"
-            "- **Components**:\n"
-            "  | Component | Type | Role in this Feature |\n"
-            "  List every component that participates in this feature with its type "
-            "(Table, View, Class, Extension, Report, Controller, Contract, etc.) "
-            "and what role it plays (e.g., 'Stores aging data', 'Runs the report', 'Adds custom fields').\n"
-            "- **How it works (simplified)**: A 3-5 step plain-English description of how the feature works end-to-end, "
-            "from the user's perspective.\n\n"
+            "Generate a 'Requirement Description' section based on the solution metadata.\n\n"
+            "Analyze ALL components (entities, plugins, workflows, forms, reports) and derive the "
+            "business requirements that this solution addresses. Present them as:\n\n"
+            "### Business Requirements\n"
+            "| Req # | Requirement | Components Involved | Priority |\n\n"
+            "Derive each requirement from the actual components — e.g., if there are custom entities "
+            "for tracking something, that implies a requirement to track that data.\n\n"
+            "### Functional Requirements\n"
+            "List the functional requirements as bullet points grouped by area "
+            "(Data Management, Process Automation, Reporting, Integration, Security).\n\n"
             "RULES:\n"
-            "- Every component in the metadata MUST belong to at least one feature.\n"
-            "- Feature names should be business-friendly (e.g., 'Inventory Aging Report with Custom Fields', "
-            "not 'PwcInventAgingCmdAggregateSelected_Extension').\n"
-            "- Do NOT invent features that have no supporting components in the metadata.\n"
-            "- Do NOT describe internal code logic — keep it at the 'what does the user see/get' level."
+            "- Derive requirements ONLY from actual components in the metadata.\n"
+            "- Use EXACT component names when referencing them.\n"
+            "- Keep descriptions concise and business-oriented.\n"
+            "- Do NOT fabricate requirements that have no supporting components."
         ),
     },
-    # --- 4. Feature Flows ---
-    "feature_flows": {
-        "title": "Feature Flows",
+    "functional_design_overview": {
+        "title": "2.2 Functional Design Overview",
         "order": 4,
         "prompt": (
-            "Generate detailed FLOW DIAGRAMS and STEP-BY-STEP FLOWS for each feature in this solution. "
-            "This section maps out exactly what happens when each feature is used.\n\n"
-            "First, identify the distinct features by grouping related components from the metadata. "
-            "Then for EACH feature:\n\n"
-            "### Feature: [Feature Name]\n\n"
-            "#### Flow Description\n"
-            "Write a numbered step-by-step flow showing what happens from start to finish:\n"
-            "| Step # | What Happens | Component Responsible | Data Involved |\n"
-            "Each row should describe one action in the flow. "
-            "'What Happens' should be in plain English. "
-            "'Component Responsible' must be the EXACT component name from metadata. "
-            "'Data Involved' should mention the specific tables/fields/entities touched.\n\n"
-            "#### Trigger\n"
-            "State what starts this flow (e.g., 'User runs the report from a menu item', "
-            "'Batch job executes on schedule', 'User clicks Sync button').\n\n"
-            "#### Components in this Flow\n"
-            "List all components involved in order of execution:\n"
-            "1. [Component Name] — [what it does in this flow]\n"
-            "2. [Component Name] — [what it does in this flow]\n"
-            "...\n\n"
-            "#### Mermaid Flow Diagram\n"
-            "Generate a Mermaid flowchart (`flowchart TD`) for this feature's flow.\n"
+            "Generate a 'Functional Design Overview' for this solution.\n\n"
+            "### Solution Summary\n"
+            "State the solution name, total component counts (entities, workflows, plugins, "
+            "roles, forms, web resources) using EXACT numbers from the metadata.\n\n"
+            "### Functional Areas\n"
+            "Group the solution's components into logical functional areas. For each area:\n"
+            "- **Area Name** (derived from component naming patterns)\n"
+            "- **Purpose**: 1-2 sentences explaining what this area does\n"
+            "- **Key Components**: List the entities, plugins, and workflows in this area\n\n"
+            "### Component Interaction Summary\n"
+            "Create a table showing how the main components interact:\n"
+            "| Component | Type | Interacts With | Interaction Description |\n\n"
+            "RULES:\n"
+            "- Use EXACT component names from the metadata.\n"
+            "- Group components logically based on naming patterns and relationships.\n"
+            "- Do NOT invent interactions not supported by the metadata."
+        ),
+    },
+    "architectural_diagram": {
+        "title": "2.3 Process Detailed Architectural Diagram",
+        "order": 5,
+        "prompt": (
+            "Generate a 'Process Detailed Architectural Diagram' section.\n\n"
+            "### System Architecture Overview\n"
+            "Describe the solution architecture in 2-3 paragraphs: what layers exist, "
+            "how data flows between entities/tables, plugins/classes, and workflows.\n\n"
+            "### Architecture Diagram\n"
+            "Generate a Mermaid diagram (`flowchart TD`) showing the solution architecture:\n"
+            "- Group components into layers: Data Layer (entities/tables), Business Logic (plugins/classes), "
+            "Process Layer (workflows), and Presentation (forms)\n"
+            "- Show connections between layers\n"
+            "- Use QUOTED labels: `nodeId[\"Label text\"]`\n"
+            "- NEVER use `{{ }}` or `<br>` in labels\n"
+            "- Wrap in a ```mermaid code fence\n\n"
+            "### Component Architecture Table\n"
+            "| Layer | Component | Type | Dependencies | Description |\n\n"
+            "RULES:\n"
+            "- Use EXACT component names from the metadata.\n"
+            "- Keep the diagram clean and readable — group related items.\n"
+            "- Base architecture ONLY on the actual solution structure."
+        ),
+    },
+    "process_flow_description": {
+        "title": "2.4 Process Flow Description",
+        "order": 6,
+        "prompt": (
+            "Generate a 'Process Flow Description' section for this solution.\n\n"
+            "Identify the main business processes in the solution by analyzing workflows, "
+            "plugins, and their trigger entities. For EACH process:\n\n"
+            "### Process: [Process Name]\n"
+            "- **Trigger**: What initiates this process\n"
+            "- **Flow Steps**:\n"
+            "| Step | Action | Component | Data Affected |\n"
+            "- **Output**: What the process produces\n\n"
+            "### Mermaid Flow Diagram\n"
+            "Generate a Mermaid flowchart for the main process flow:\n"
             "- Use QUOTED labels: `nodeId[\"Label text\"]`\n"
             "- Label every edge with what happens\n"
             "- NEVER use `{{ }}` or `<br>` in labels\n"
-            "- Keep it simple and readable\n"
             "- Wrap in a ```mermaid code fence\n\n"
-            "#### Input / Output\n"
-            "- **Input**: What data or user action feeds into this flow\n"
-            "- **Output**: What the user gets at the end (e.g., a report, synced data, updated records)\n\n"
             "RULES:\n"
-            "- Base flows ONLY on component relationships visible in the metadata.\n"
-            "- If a class extends another, show the base being called first, then the extension.\n"
-            "- Use EXACT component names from metadata.\n"
-            "- Do NOT fabricate processing logic — describe flows at the component interaction level.\n"
-            "- Every component must appear in at least one feature flow."
+            "- Base flows ONLY on actual component relationships in the metadata.\n"
+            "- Use EXACT component names.\n"
+            "- Do NOT fabricate processing logic — describe at the component interaction level."
+        ),
+    },
+    # ===== 3. Detailed Technical Design =====
+    "action_menu_items": {
+        "title": "3.1 Action Menu Items",
+        "order": 7,
+        "prompt": (
+            "Generate an 'Action Menu Items' section for this solution.\n\n"
+            "List all action menu items, buttons, and entry points detected in the solution metadata. "
+            "If the metadata contains forms, list any action panes or menu items associated with them.\n\n"
+            "| # | Menu Item Name | Type (Action / Display / Output) | Target Form/Entity | Description |\n\n"
+            "If no explicit menu items are detected, derive likely menu items from:\n"
+            "- Forms that exist in the solution (each form implies navigation menu items)\n"
+            "- Reports (each report implies a menu item to run it)\n"
+            "- Batch jobs / workflows with manual triggers\n\n"
+            "RULES:\n"
+            "- Use EXACT names from the metadata.\n"
+            "- Clearly mark derived items as 'Inferred from [component]'.\n"
+            "- Keep descriptions concise."
+        ),
+    },
+    "tables": {
+        "title": "3.2 Tables",
+        "order": 8,
+        "prompt": (
+            "Generate a detailed 'Tables' section listing ALL entities/tables in this solution.\n\n"
+            "### Table Summary\n"
+            "| # | Table Name | Display Name | Field Count | Related Workflows | Related Plugins |\n\n"
+            "### Table Details\n"
+            "For EACH entity/table, create a sub-section:\n"
+            "#### [Table Name]\n"
+            "- **Display Name**: (if available)\n"
+            "- **Purpose**: 1 sentence derived from the table name and its fields\n"
+            "- **Fields**:\n"
+            "| # | Field Name | Display Name | Data Type | Description |\n"
+            "List ALL fields with their types. For 'Description', write a brief purpose based on the field name.\n"
+            "- **Related Components**: List any workflows, plugins, or forms that reference this table\n\n"
+            "RULES:\n"
+            "- List EVERY entity/table in the metadata — nothing should be missing.\n"
+            "- Use EXACT field names and types from the metadata.\n"
+            "- Keep descriptions factual and derived from names only."
+        ),
+    },
+    "forms": {
+        "title": "3.3 Forms",
+        "order": 9,
+        "prompt": (
+            "Generate a 'Forms' section documenting all forms in this solution.\n\n"
+            "### Form Summary\n"
+            "| # | Form Name | Related Entity | Type (Main / Lookup / Dialog) | Description |\n\n"
+            "### Form Details\n"
+            "For each form, describe:\n"
+            "- **Entity**: Which table/entity this form is bound to\n"
+            "- **Purpose**: What the form is used for (derived from name and entity)\n"
+            "- **Key Fields Displayed**: List the main fields shown on this form (based on entity fields)\n"
+            "- **Related Plugins/Workflows**: Any business logic triggered from this form\n\n"
+            "If no explicit forms exist in the metadata, state 'No custom forms detected in the solution. "
+            "Standard system forms are used for the entities listed in Section 3.2.'\n\n"
+            "RULES:\n"
+            "- Use EXACT names from the metadata.\n"
+            "- Do NOT fabricate form layouts — only describe what the metadata shows."
+        ),
+    },
+    "classes": {
+        "title": "3.4 Classes",
+        "order": 10,
+        "prompt": (
+            "Generate a detailed 'Classes' section documenting all plugins, extensions, and classes.\n\n"
+            "### Class Summary\n"
+            "| # | Class Name | Type (Plugin / Extension / Controller / Contract / Service / Helper) "
+            "| Target Entity | Trigger (Create / Update / Delete) | Stage (Pre / Post) |\n\n"
+            "### Class Details\n"
+            "For EACH class/plugin, create a sub-section:\n"
+            "#### [Class Name]\n"
+            "- **Type**: Plugin / Extension / etc.\n"
+            "- **Target Entity**: Which entity this operates on\n"
+            "- **Operation**: Create / Update / Delete / Custom\n"
+            "- **Stage**: Pre-operation / Post-operation\n"
+            "- **Description**: 2-3 sentences explaining what this class does (derived from its name, "
+            "target, and any metadata description)\n"
+            "- **Dependencies**: Other classes or entities this depends on\n\n"
+            "RULES:\n"
+            "- List EVERY plugin/class in the metadata.\n"
+            "- Use EXACT names from the metadata.\n"
+            "- Keep descriptions derived from available metadata — do NOT fabricate business logic."
+        ),
+    },
+    "digital_signature_utility": {
+        "title": "3.5 Digital Signature Utility",
+        "order": 11,
+        "prompt": (
+            "Generate a 'Digital Signature Utility' section.\n\n"
+            "Analyze the solution metadata for any components related to:\n"
+            "- Digital signatures or electronic signatures\n"
+            "- Approval workflows\n"
+            "- Document signing or verification\n"
+            "- Authentication or authorization plugins\n"
+            "- Audit trail or compliance tracking\n\n"
+            "If such components exist, document them:\n"
+            "| # | Component | Type | Purpose | Related Entity |\n\n"
+            "Describe how the digital signature / approval process works based on the component flow.\n\n"
+            "If NO digital signature or approval components are detected, state:\n"
+            "'No dedicated digital signature utility components were detected in this solution. "
+            "If digital signature functionality is required, it would need to be implemented as a "
+            "separate customization or through a third-party integration.'\n\n"
+            "RULES:\n"
+            "- Only document what exists in the metadata.\n"
+            "- Do NOT fabricate digital signature capabilities."
         ),
     },
 }
@@ -497,7 +579,7 @@ def _has_real_plugin_descriptions(graph: KnowledgeGraph) -> bool:
 def _check_section_suppression(section_key: str, graph: KnowledgeGraph) -> str | None:
     """Return minimal content string if section should be suppressed, None otherwise.
 
-    With the new 4-section documentation structure, all sections are always generated.
+    With the 11-section / 3-group documentation structure, all sections are always generated.
     """
     return None
 
@@ -848,12 +930,23 @@ def _compact_graph_summary(graph: KnowledgeGraph) -> str:
 
 _SECTION_SYSTEM_PROMPT = """You are a Microsoft Dynamics 365 Solution Architect and documentation specialist.
 
-You are generating one section of a focused, easy-to-understand documentation package
-that follows this 4-section structure:
-1. Component Overview — List every component in the solution
-2. How Everything Links Together — Explain connections in plain language for non-technical readers
-3. Feature List — Identify and describe all features with their components
-4. Feature Flows — Map out step-by-step flows for each feature with diagrams
+You are generating one section of a professional Technical Design Document
+that follows this 11-section / 3-group structure:
+
+1. Overview
+   1.1 Purpose of the Document
+   1.2 Intended Audience
+2. Design Overview
+   2.1 Requirement Description
+   2.2 Functional Design Overview
+   2.3 Process Detailed Architectural Diagram
+   2.4 Process Flow Description
+3. Detailed Technical Design
+   3.1 Action Menu Items
+   3.2 Tables
+   3.3 Forms
+   3.4 Classes
+   3.5 Digital Signature Utility
 
 Based on the provided solution metadata and knowledge graph relationships,
 generate clear, well-structured documentation for the requested section.

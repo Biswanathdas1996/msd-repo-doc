@@ -110,6 +110,23 @@ artifacts-monorepo/
 - `artifacts/doc-generator: web` - React frontend
 - `artifacts/api-server: API Server` - Express health check
 
+## Documentation Sections (11 sections, 3 groups)
+
+1. **Overview**
+   - 1.1 Purpose of the Document (`doc_purpose`)
+   - 1.2 Intended Audience (`intended_audience`)
+2. **Design Overview**
+   - 2.1 Requirement Description (`requirement_description`)
+   - 2.2 Functional Design Overview (`functional_design_overview`)
+   - 2.3 Process Detailed Architectural Diagram (`architectural_diagram`)
+   - 2.4 Process Flow Description (`process_flow_description`)
+3. **Detailed Technical Design**
+   - 3.1 Action Menu Items (`action_menu_items`)
+   - 3.2 Tables (`tables`)
+   - 3.3 Forms (`forms`)
+   - 3.4 Classes (`classes`)
+   - 3.5 Digital Signature Utility (`digital_signature_utility`)
+
 ## Frontend Pages
 
 - **Dashboard**: Solution list with stats, upload dialog
