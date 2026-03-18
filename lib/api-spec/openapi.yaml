@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: AI Documentation Generator API
 servers:
-  - url: /py-api
+  - url: /api/py-api
     description: Python FastAPI backend
 tags:
   - name: health

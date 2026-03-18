@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Documentation Generator",
     version="1.0.0",
-    root_path="/py-api",
+    root_path="/api/py-api",
     lifespan=lifespan
 )
 
@@ -389,56 +389,136 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
             os.unlink(tmp_path)
 
 
-@app.post("/solutions/upload")
-async def upload_solution(
+_chunked_uploads: dict[str, dict] = {}
+CHUNKED_UPLOAD_MAX_AGE = 3600
+
+def _cleanup_stale_chunked_uploads():
+    now = time.time()
+    stale = [uid for uid, info in _chunked_uploads.items()
+             if now - info["last_activity"] > CHUNKED_UPLOAD_MAX_AGE]
+    for uid in stale:
+        info = _chunked_uploads.pop(uid, None)
+        if info and os.path.exists(info["tmp_path"]):
+            os.unlink(info["tmp_path"])
+
+
+@app.post("/solutions/upload/init")
+async def chunked_upload_init(
     request: Request,
-    file: UploadFile = File(...),
-    name: str = Form(default="")
 ):
-    if not file.filename or not file.filename.lower().endswith(".zip"):
+    body = await request.json()
+    filename = body.get("filename", "")
+    total_size = body.get("totalSize", 0)
+    total_chunks = body.get("totalChunks", 0)
+    name = body.get("name", "")
+
+    if not filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
-    # Use a large chunk to maximise throughput on fast networks
-    CHUNK_SIZE = 32 * 1024 * 1024  # 32 MB
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024
+    if total_size > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Max 10 GB.")
 
-    tmp_path: str | None = None
+    _cleanup_stale_chunked_uploads()
+
+    upload_id = hashlib.md5(f"{filename}-{time.time()}-{os.urandom(8).hex()}".encode()).hexdigest()[:16]
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    tmp.close()
+
+    chunk_size = 50 * 1024 * 1024
+    _chunked_uploads[upload_id] = {
+        "tmp_path": tmp.name,
+        "filename": filename,
+        "name": name,
+        "total_size": total_size,
+        "total_chunks": total_chunks,
+        "chunk_size": chunk_size,
+        "received_chunks": 0,
+        "received_set": set(),
+        "bytes_written": 0,
+        "last_activity": time.time(),
+    }
+
+    return {"uploadId": upload_id}
+
+
+@app.post("/solutions/upload/chunk")
+async def chunked_upload_chunk(
+    request: Request,
+    file: UploadFile = File(...),
+    uploadId: str = Form(...),
+    chunkIndex: int = Form(...),
+):
+    info = _chunked_uploads.get(uploadId)
+    if not info:
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+
+    if chunkIndex < 0 or chunkIndex >= info["total_chunks"]:
+        raise HTTPException(status_code=400, detail=f"Invalid chunk index {chunkIndex}")
+
+    info["last_activity"] = time.time()
+
     try:
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-            tmp_path = tmp.name
-            total_written = 0
-            while True:
-                try:
-                    chunk = await file.read(CHUNK_SIZE)
-                except ClientDisconnect:
-                    # Client closed the connection mid-upload
-                    if tmp_path and os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
-                    raise HTTPException(status_code=499, detail="Client disconnected")
+        chunk_data = await file.read()
+    except ClientDisconnect:
+        raise HTTPException(status_code=499, detail="Client disconnected")
 
-                if not chunk:
-                    break
-                total_written += len(chunk)
-                if total_written > MAX_UPLOAD_SIZE:
-                    tmp.close()
-                    os.unlink(tmp_path)
-                    raise HTTPException(status_code=400, detail="File too large. Max 10 GB.")
-                tmp.write(chunk)
+    chunk_size = info.get("chunk_size", 50 * 1024 * 1024)
+    offset = chunkIndex * chunk_size
+    with open(info["tmp_path"], "r+b" if os.path.getsize(info["tmp_path"]) > 0 else "wb") as f:
+        f.seek(offset)
+        f.write(chunk_data)
 
-                # Yield control periodically so the event loop stays responsive
-                # and keep-alive / progress events are not starved.
-                await asyncio.sleep(0)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+    received = info.setdefault("received_set", set())
+    if chunkIndex not in received:
+        received.add(chunkIndex)
+        info["received_chunks"] = len(received)
+    info["bytes_written"] = sum(1 for _ in received) * chunk_size
 
-    solution_name = name or file.filename or ""
+    return {
+        "chunkIndex": chunkIndex,
+        "receivedChunks": info["received_chunks"],
+        "bytesWritten": info["bytes_written"],
+    }
+
+
+@app.post("/solutions/upload/finalize")
+async def chunked_upload_finalize(
+    request: Request,
+):
+    body = await request.json()
+    upload_id = body.get("uploadId", "")
+    name_override = body.get("name", "")
+
+    info = _chunked_uploads.get(upload_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+
+    if info["received_chunks"] < info["total_chunks"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Upload incomplete: received {info['received_chunks']}/{info['total_chunks']} chunks"
+        )
+
+    _chunked_uploads.pop(upload_id, None)
+
+    tmp_path = info["tmp_path"]
+    if not os.path.exists(tmp_path):
+        raise HTTPException(status_code=500, detail="Temporary upload file missing")
+
+    actual_size = os.path.getsize(tmp_path)
+    if actual_size < info["total_size"]:
+        os.unlink(tmp_path)
+        raise HTTPException(status_code=400, detail="Upload file size mismatch")
+
+    if actual_size > info["total_size"]:
+        with open(tmp_path, "r+b") as f:
+            f.truncate(info["total_size"])
+
+    solution_name = name_override or info["name"] or info["filename"] or ""
     sol_id = hashlib.md5(f"{solution_name}-{time.time()}".encode()).hexdigest()[:8]
 
-    # Register a placeholder so the UI can show "processing" immediately
     placeholder = {
         "id": sol_id,
         "name": solution_name,
@@ -456,11 +536,92 @@ async def upload_solution(
     solutions_store[sol_id] = placeholder
     _save_solution_metadata(sol_id, placeholder)
 
-    # Kick off heavy work in a background thread so we can return the HTTP
-    # response immediately — this prevents proxy / client timeouts.
     loop = asyncio.get_running_loop()
     loop.run_in_executor(
-        None,  # default ThreadPoolExecutor
+        None,
+        _background_process_solution,
+        tmp_path,
+        solution_name,
+        sol_id,
+    )
+
+    return SolutionSummary(
+        id=sol_id,
+        name=solution_name,
+        uploadedAt=placeholder["uploadedAt"],
+        entityCount=0,
+        workflowCount=0,
+        pluginCount=0,
+        hasDocumentation=False,
+        status=SolutionStatus.processing,
+    )
+
+
+@app.post("/solutions/upload")
+async def upload_solution(
+    request: Request,
+    file: UploadFile = File(...),
+    name: str = Form(default="")
+):
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a ZIP file")
+
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
+    CHUNK_SIZE = 32 * 1024 * 1024  # 32 MB
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            tmp_path = tmp.name
+            total_written = 0
+            while True:
+                try:
+                    chunk = await file.read(CHUNK_SIZE)
+                except ClientDisconnect:
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    raise HTTPException(status_code=499, detail="Client disconnected")
+
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > MAX_UPLOAD_SIZE:
+                    tmp.close()
+                    os.unlink(tmp_path)
+                    raise HTTPException(status_code=400, detail="File too large. Max 10 GB.")
+                tmp.write(chunk)
+
+                await asyncio.sleep(0)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+
+    solution_name = name or file.filename or ""
+    sol_id = hashlib.md5(f"{solution_name}-{time.time()}".encode()).hexdigest()[:8]
+
+    placeholder = {
+        "id": sol_id,
+        "name": solution_name,
+        "uploadedAt": datetime.now(timezone.utc).isoformat(),
+        "status": "processing",
+        "entityCount": 0,
+        "workflowCount": 0,
+        "pluginCount": 0,
+        "formCount": 0,
+        "roleCount": 0,
+        "webResourceCount": 0,
+        "hasDocumentation": False,
+        "metadata": None,
+    }
+    solutions_store[sol_id] = placeholder
+    _save_solution_metadata(sol_id, placeholder)
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(
+        None,
         _background_process_solution,
         tmp_path,
         solution_name,
@@ -527,6 +688,14 @@ def get_solution(sol_id: str):
         hasDocumentation=data.get("hasDocumentation", False),
         metadata=SolutionMetadata(**data["metadata"]) if data.get("metadata") else None
     )
+
+
+@app.get("/solutions/{sol_id}/download/check")
+def check_download_available(sol_id: str):
+    _get_solution_or_404(sol_id)
+    zip_path = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
+    available = os.path.exists(zip_path)
+    return {"available": available, "size": os.path.getsize(zip_path) if available else 0}
 
 
 @app.get("/solutions/{sol_id}/download")

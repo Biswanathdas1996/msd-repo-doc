@@ -67,24 +67,27 @@ artifacts-monorepo/
 └── package.json
 ```
 
-## Key Endpoints (Python FastAPI at /py-api)
+## Key Endpoints (Python FastAPI proxied via Express at /api/py-api)
 
-- `GET /py-api/healthz` - Health check
-- `POST /py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB)
-- `GET /py-api/solutions` - List solutions
-- `GET /py-api/solutions/{id}` - Solution details
-- `DELETE /py-api/solutions/{id}` - Delete solution
-- `GET /py-api/solutions/{id}/knowledge-graph` - JSON Knowledge Graph
-- `GET /py-api/solutions/{id}/entities` - Parsed entities
-- `GET /py-api/solutions/{id}/workflows` - Parsed workflows
-- `GET /py-api/solutions/{id}/plugins` - Parsed plugins
-- `GET /py-api/solutions/{id}/functional-flows` - Functional flows
-- `POST /py-api/solutions/{id}/generate-docs` - Generate AI documentation
-- `GET /py-api/solutions/{id}/docs` - Get generated docs
-- `POST /py-api/solutions/{id}/verify` - Verify docs against knowledge graph
-- `GET /py-api/solutions/{id}/download/docx` - Download docs as Word (.docx)
-- `GET /py-api/solutions/{id}/download/pdf` - Download docs as PDF
-- `POST /py-api/solutions/{id}/reprocess` - Re-run parser + knowledge graph builder on existing source files (useful after parser changes)
+- `GET /api/py-api/healthz` - Health check
+- `POST /api/py-api/solutions/upload` - Upload Dynamics solution ZIP (multipart/form-data, streamed, up to 10GB, legacy single-request)
+- `POST /api/py-api/solutions/upload/init` - Initialize chunked upload session (JSON body: filename, totalSize, totalChunks, name)
+- `POST /api/py-api/solutions/upload/chunk` - Upload a single chunk (multipart: file, uploadId, chunkIndex; idempotent via seek-based writes)
+- `POST /api/py-api/solutions/upload/finalize` - Finalize chunked upload and start processing (JSON body: uploadId, name)
+- `GET /api/py-api/solutions` - List solutions
+- `GET /api/py-api/solutions/{id}` - Solution details
+- `DELETE /api/py-api/solutions/{id}` - Delete solution
+- `GET /api/py-api/solutions/{id}/knowledge-graph` - JSON Knowledge Graph
+- `GET /api/py-api/solutions/{id}/entities` - Parsed entities
+- `GET /api/py-api/solutions/{id}/workflows` - Parsed workflows
+- `GET /api/py-api/solutions/{id}/plugins` - Parsed plugins
+- `GET /api/py-api/solutions/{id}/functional-flows` - Functional flows
+- `POST /api/py-api/solutions/{id}/generate-docs` - Generate AI documentation
+- `GET /api/py-api/solutions/{id}/docs` - Get generated docs
+- `POST /api/py-api/solutions/{id}/verify` - Verify docs against knowledge graph
+- `GET /api/py-api/solutions/{id}/download/docx` - Download docs as Word (.docx)
+- `GET /api/py-api/solutions/{id}/download/pdf` - Download docs as PDF
+- `POST /api/py-api/solutions/{id}/reprocess` - Re-run parser + knowledge graph builder on existing source files (useful after parser changes)
 
 ## Input Formats Supported
 

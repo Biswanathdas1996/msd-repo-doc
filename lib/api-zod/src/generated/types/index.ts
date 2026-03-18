@@ -7,6 +7,7 @@
  */
 
 export * from "./docSection";
+export * from "./docSectionInfo";
 export * from "./entity";
 export * from "./entityField";
 export * from "./errorResponse";

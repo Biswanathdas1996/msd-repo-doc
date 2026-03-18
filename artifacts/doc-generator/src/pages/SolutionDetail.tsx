@@ -70,7 +70,7 @@ export default function SolutionDetail() {
   const handleGenerateSection = useCallback(async (sectionKey: string) => {
     setGeneratingSections(prev => new Set(prev).add(sectionKey));
     try {
-      const res = await fetch(`/py-api/solutions/${id}/generate-section/${sectionKey}`, {
+      const res = await fetch(`/api/py-api/solutions/${id}/generate-section/${sectionKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -80,8 +80,8 @@ export default function SolutionDetail() {
       }
       setGeneratedSections(prev => new Set(prev).add(sectionKey));
       // Invalidate docs cache to refresh
-      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}/docs`] });
-      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${id}/docs`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${id}`] });
       toast({ title: `Section generated`, description: ALL_DOC_SECTIONS.find(s => s.key === sectionKey)?.label });
     } catch (err: any) {
       toast({ title: "Section generation failed", description: err.message, variant: "destructive" });
@@ -122,7 +122,7 @@ export default function SolutionDetail() {
   const handleDownload = async (format: "docx" | "pdf") => {
     setDownloading(format);
     try {
-      const res = await fetch(`/py-api/solutions/${id}/download/${format}`);
+      const res = await fetch(`/api/py-api/solutions/${id}/download/${format}`);
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
@@ -265,9 +265,9 @@ export default function SolutionDetail() {
           <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
             {entities?.map(entity => (
               <div key={entity.name} className="bg-card border border-border rounded-xl p-5">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-blue-400">{entity.displayName || entity.name} <span className="text-sm font-normal text-muted-foreground ml-2">({entity.name})</span></h3>
-                  <div className="flex gap-2">
+                <div className="flex justify-between items-start mb-4 gap-4">
+                  <h3 className="text-lg font-semibold text-blue-400 break-all min-w-0">{entity.displayName || entity.name} <span className="text-sm font-normal text-muted-foreground ml-2">({entity.name})</span></h3>
+                  <div className="flex gap-2 shrink-0">
                     {entity.workflows && entity.workflows.length > 0 && <span className="text-xs bg-muted px-2 py-1 rounded-md">{entity.workflows.length} workflows</span>}
                     {entity.plugins && entity.plugins.length > 0 && <span className="text-xs bg-muted px-2 py-1 rounded-md">{entity.plugins.length} plugins</span>}
                   </div>
@@ -322,7 +322,7 @@ export default function SolutionDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 animate-in slide-in-from-bottom-4 duration-500">
             {plugins?.map(pl => (
               <div key={pl.name} className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-lg font-semibold text-emerald-400 mb-3 truncate" title={pl.name}>{pl.name}</h3>
+                <h3 className="text-lg font-semibold text-emerald-400 mb-3 break-all" title={pl.name}>{pl.name}</h3>
                 <div className="space-y-3">
                   <div className="bg-muted/30 p-3 rounded-lg border border-border/50">
                     <div className="text-xs text-muted-foreground mb-1">Target Entity</div>
@@ -619,7 +619,7 @@ export default function SolutionDetail() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         {renderTabContent()}
       </div>
     </div>
