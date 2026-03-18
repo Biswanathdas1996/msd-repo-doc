@@ -133,8 +133,8 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         raise
 
 
-def _build_solution_data(result: dict, solution_name: str) -> Solution:
-    sol_id = result["id"]
+def _build_solution_data(result: dict, solution_name: str, override_id: str | None = None) -> Solution:
+    sol_id = override_id or result["id"]
     final_name = solution_name or f"Solution {sol_id}"
     structure = result["structure"]
     is_source_code = result.get("is_source_code", False)
@@ -370,13 +370,18 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
 
         saved_zip = None
         if os.path.exists(tmp_path):
-            saved_zip = os.path.join(UPLOADS_DIR, f"{result['id']}.zip")
+            saved_zip = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
             shutil.copy2(tmp_path, saved_zip)
             os.unlink(tmp_path)
 
-        sol_data = _build_solution_data(result, solution_name)
-        # _build_solution_data returns a Solution pydantic model; we already
-        # persisted inside it, so nothing else needed.
+        old_extractor_id = result["id"]
+        if old_extractor_id != sol_id and old_extractor_id in solutions_store:
+            del solutions_store[old_extractor_id]
+            old_meta = os.path.join(METADATA_DIR, f"{old_extractor_id}.json")
+            if os.path.exists(old_meta):
+                os.unlink(old_meta)
+
+        sol_data = _build_solution_data(result, solution_name, override_id=sol_id)
         logger.info("Background processing complete for %s", sol_id)
     except Exception:
         logger.error("Background processing failed for %s:\n%s", sol_id, traceback.format_exc())
