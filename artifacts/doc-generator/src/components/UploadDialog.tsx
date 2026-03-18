@@ -105,7 +105,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
     const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
 
     try {
-      const initRes = await fetch("/py-api/solutions/upload/init", {
+      const initRes = await fetch("/api/py-api/solutions/upload/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -140,7 +140,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
         const maxRetries = 3;
         while (retries <= maxRetries) {
           try {
-            const chunkRes = await fetch("/py-api/solutions/upload/chunk", {
+            const chunkRes = await fetch("/api/py-api/solutions/upload/chunk", {
               method: "POST",
               body: chunkForm,
               signal: abortController.signal,
@@ -163,7 +163,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
         setUploadProgress(percent);
       }
 
-      const finalRes = await fetch("/py-api/solutions/upload/finalize", {
+      const finalRes = await fetch("/api/py-api/solutions/upload/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uploadId, name: solutionName }),
@@ -178,7 +178,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       abortControllerRef.current = null;
       setIsUploading(false);
       setUploadProgress(null);
-      queryClient.invalidateQueries({ queryKey: ["/py-api/solutions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
       toast({ title: "Upload complete", description: "Solution is now being parsed and processed." });
       handleClose();
     } catch (err: any) {

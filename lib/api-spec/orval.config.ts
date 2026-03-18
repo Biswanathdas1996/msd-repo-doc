@@ -26,7 +26,7 @@ export default defineConfig({
       target: "generated",
       client: "react-query",
       mode: "split",
-      baseUrl: "/py-api",
+      baseUrl: "/api/py-api",
       clean: true,
       prettier: true,
       override: {

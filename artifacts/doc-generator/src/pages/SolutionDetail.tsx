@@ -82,7 +82,7 @@ export default function SolutionDetail() {
   const handleGenerateSection = useCallback(async (sectionKey: string) => {
     setGeneratingSections(prev => new Set(prev).add(sectionKey));
     try {
-      const res = await fetch(`/py-api/solutions/${id}/generate-section/${sectionKey}`, {
+      const res = await fetch(`/api/py-api/solutions/${id}/generate-section/${sectionKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -92,8 +92,8 @@ export default function SolutionDetail() {
       }
       setGeneratedSections(prev => new Set(prev).add(sectionKey));
       // Invalidate docs cache to refresh
-      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}/docs`] });
-      queryClient.invalidateQueries({ queryKey: [`/py-api/solutions/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${id}/docs`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${id}`] });
       toast({ title: `Section generated`, description: ALL_DOC_SECTIONS.find(s => s.key === sectionKey)?.label });
     } catch (err: any) {
       toast({ title: "Section generation failed", description: err.message, variant: "destructive" });
@@ -134,7 +134,7 @@ export default function SolutionDetail() {
   const handleDownload = async (format: "docx" | "pdf") => {
     setDownloading(format);
     try {
-      const res = await fetch(`/py-api/solutions/${id}/download/${format}`);
+      const res = await fetch(`/api/py-api/solutions/${id}/download/${format}`);
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";

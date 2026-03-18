@@ -38,7 +38,7 @@ export default function Dashboard() {
   const handleDownload = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/py-api/solutions/${id}/download`);
+      const res = await fetch(`/api/py-api/solutions/${id}/download`);
       if (!res.ok) {
         toast({ title: "Download unavailable", description: "The original ZIP file is no longer available.", variant: "destructive" });
         return;

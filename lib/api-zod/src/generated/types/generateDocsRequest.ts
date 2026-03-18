@@ -8,6 +8,6 @@
 import type { GenerateDocsRequestSectionsItem } from "./generateDocsRequestSectionsItem";
 
 export interface GenerateDocsRequest {
-  /** Specific sections to generate (empty for all) */
+  /** Specific sections to generate (empty for all 15 sections) */
   sections?: GenerateDocsRequestSectionsItem[];
 }

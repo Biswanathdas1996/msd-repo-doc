@@ -175,18 +175,33 @@ export type GenerateDocsRequestSectionsItem =
   (typeof GenerateDocsRequestSectionsItem)[keyof typeof GenerateDocsRequestSectionsItem];
 
 export const GenerateDocsRequestSectionsItem = {
-  overview: "overview",
-  features: "features",
-  architecture: "architecture",
-  entities: "entities",
-  workflows: "workflows",
-  functional_flow: "functional_flow",
-  integrations: "integrations",
+  executive_summary: "executive_summary",
+  business_requirements: "business_requirements",
+  functional_design: "functional_design",
+  technical_design: "technical_design",
+  data_model: "data_model",
+  integration: "integration",
+  customization: "customization",
+  security_model: "security_model",
+  deployment: "deployment",
+  testing: "testing",
+  support_operations: "support_operations",
+  user_guide: "user_guide",
+  solution_inventory: "solution_inventory",
+  environment_config: "environment_config",
+  change_log: "change_log",
 } as const;
 
 export interface GenerateDocsRequest {
-  /** Specific sections to generate (empty for all) */
+  /** Specific sections to generate (empty for all 15 sections) */
   sections?: GenerateDocsRequestSectionsItem[];
+}
+
+export interface DocSectionInfo {
+  key: string;
+  title: string;
+  order: number;
+  generated: boolean;
 }
 
 export interface DocSection {

@@ -44,21 +44,18 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
-      "/py-api": {
+      "/api/py-api": {
         target: "http://localhost:5001",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/py-api/, ""),
+        rewrite: (path) => path.replace(/^\/api\/py-api/, ""),
         timeout: 0,
-        // Allow very large uploads (10 GB+) with no proxy timeout
         proxyTimeout: 0,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq) => {
             proxyReq.setSocketKeepAlive(true);
-            // Remove any default content-length limit imposed by node
             proxyReq.removeHeader("connection");
             proxyReq.setHeader("connection", "keep-alive");
           });
-          // Disable socket timeout on the proxy-side socket
           proxy.on("proxyRes", (_proxyRes, _req, res) => {
             if (res.socket) {
               res.socket.setTimeout(0);

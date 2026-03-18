@@ -254,7 +254,7 @@ export const GetFunctionalFlowsResponse = zod.array(
 );
 
 /**
- * Generate structured documentation using AI reasoning
+ * Generate structured documentation using AI reasoning (bulk — all selected sections in one call)
  * @summary Generate AI documentation
  */
 export const GenerateDocsParams = zod.object({
@@ -265,17 +265,25 @@ export const GenerateDocsBody = zod.object({
   sections: zod
     .array(
       zod.enum([
-        "overview",
-        "features",
-        "architecture",
-        "entities",
-        "workflows",
-        "functional_flow",
-        "integrations",
+        "executive_summary",
+        "business_requirements",
+        "functional_design",
+        "technical_design",
+        "data_model",
+        "integration",
+        "customization",
+        "security_model",
+        "deployment",
+        "testing",
+        "support_operations",
+        "user_guide",
+        "solution_inventory",
+        "environment_config",
+        "change_log",
       ]),
     )
     .optional()
-    .describe("Specific sections to generate (empty for all)"),
+    .describe("Specific sections to generate (empty for all 15 sections)"),
 });
 
 export const GenerateDocsResponse = zod.object({
@@ -290,6 +298,53 @@ export const GenerateDocsResponse = zod.object({
     }),
   ),
   verified: zod.boolean(),
+});
+
+/**
+ * @summary List available documentation sections and their generation status
+ */
+export const ListDocSectionsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListDocSectionsResponseItem = zod.object({
+  key: zod.string(),
+  title: zod.string(),
+  order: zod.number(),
+  generated: zod.boolean(),
+});
+export const ListDocSectionsResponse = zod.array(ListDocSectionsResponseItem);
+
+/**
+ * Generate one section at a time. The section is merged into existing docs. Supports chunking for large solutions.
+ * @summary Generate a single documentation section with chunking
+ */
+export const GenerateSectionParams = zod.object({
+  id: zod.coerce.string(),
+  sectionKey: zod.enum([
+    "executive_summary",
+    "business_requirements",
+    "functional_design",
+    "technical_design",
+    "data_model",
+    "integration",
+    "customization",
+    "security_model",
+    "deployment",
+    "testing",
+    "support_operations",
+    "user_guide",
+    "solution_inventory",
+    "environment_config",
+    "change_log",
+  ]),
+});
+
+export const GenerateSectionResponse = zod.object({
+  title: zod.string(),
+  slug: zod.string(),
+  content: zod.string(),
+  order: zod.number(),
 });
 
 /**

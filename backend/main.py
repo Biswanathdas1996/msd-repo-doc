@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Documentation Generator",
     version="1.0.0",
-    root_path="/py-api",
+    root_path="/api/py-api",
     lifespan=lifespan
 )
 

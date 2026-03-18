@@ -17,6 +17,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  DocSection,
+  DocSectionInfo,
   Entity,
   ErrorResponse,
   FunctionalFlow,
@@ -48,7 +50,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
-  return `/py-api/healthz`;
+  return `/api/py-api/healthz`;
 };
 
 export const healthCheck = async (
@@ -61,7 +63,7 @@ export const healthCheck = async (
 };
 
 export const getHealthCheckQueryKey = () => {
-  return [`/py-api/healthz`] as const;
+  return [`/api/py-api/healthz`] as const;
 };
 
 export const getHealthCheckQueryOptions = <
@@ -124,7 +126,7 @@ export function useHealthCheck<
  * @summary Upload a Dynamics solution ZIP file
  */
 export const getUploadSolutionUrl = () => {
-  return `/py-api/solutions/upload`;
+  return `/api/py-api/solutions/upload`;
 };
 
 export const uploadSolution = async (
@@ -216,7 +218,7 @@ export const useUploadSolution = <
  * @summary Import a Dynamics solution from a GitHub repository
  */
 export const getImportFromGithubUrl = () => {
-  return `/py-api/solutions/import-github`;
+  return `/api/py-api/solutions/import-github`;
 };
 
 export const importFromGithub = async (
@@ -302,7 +304,7 @@ export const useImportFromGithub = <
  * @summary List all uploaded solutions
  */
 export const getListSolutionsUrl = () => {
-  return `/py-api/solutions`;
+  return `/api/py-api/solutions`;
 };
 
 export const listSolutions = async (
@@ -315,7 +317,7 @@ export const listSolutions = async (
 };
 
 export const getListSolutionsQueryKey = () => {
-  return [`/py-api/solutions`] as const;
+  return [`/api/py-api/solutions`] as const;
 };
 
 export const getListSolutionsQueryOptions = <
@@ -377,7 +379,7 @@ export function useListSolutions<
  * @summary Get solution details
  */
 export const getGetSolutionUrl = (id: string) => {
-  return `/py-api/solutions/${id}`;
+  return `/api/py-api/solutions/${id}`;
 };
 
 export const getSolution = async (
@@ -391,7 +393,7 @@ export const getSolution = async (
 };
 
 export const getGetSolutionQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}`] as const;
+  return [`/api/py-api/solutions/${id}`] as const;
 };
 
 export const getGetSolutionQueryOptions = <
@@ -464,7 +466,7 @@ export function useGetSolution<
  * @summary Delete a solution
  */
 export const getDeleteSolutionUrl = (id: string) => {
-  return `/py-api/solutions/${id}`;
+  return `/api/py-api/solutions/${id}`;
 };
 
 export const deleteSolution = async (
@@ -548,7 +550,7 @@ export const useDeleteSolution = <
  * @summary Get the JSON knowledge graph
  */
 export const getGetKnowledgeGraphUrl = (id: string) => {
-  return `/py-api/solutions/${id}/knowledge-graph`;
+  return `/api/py-api/solutions/${id}/knowledge-graph`;
 };
 
 export const getKnowledgeGraph = async (
@@ -562,7 +564,7 @@ export const getKnowledgeGraph = async (
 };
 
 export const getGetKnowledgeGraphQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/knowledge-graph`] as const;
+  return [`/api/py-api/solutions/${id}/knowledge-graph`] as const;
 };
 
 export const getGetKnowledgeGraphQueryOptions = <
@@ -635,7 +637,7 @@ export function useGetKnowledgeGraph<
  * @summary Get parsed entities
  */
 export const getGetEntitiesUrl = (id: string) => {
-  return `/py-api/solutions/${id}/entities`;
+  return `/api/py-api/solutions/${id}/entities`;
 };
 
 export const getEntities = async (
@@ -649,7 +651,7 @@ export const getEntities = async (
 };
 
 export const getGetEntitiesQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/entities`] as const;
+  return [`/api/py-api/solutions/${id}/entities`] as const;
 };
 
 export const getGetEntitiesQueryOptions = <
@@ -722,7 +724,7 @@ export function useGetEntities<
  * @summary Get parsed workflows
  */
 export const getGetWorkflowsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/workflows`;
+  return `/api/py-api/solutions/${id}/workflows`;
 };
 
 export const getWorkflows = async (
@@ -736,7 +738,7 @@ export const getWorkflows = async (
 };
 
 export const getGetWorkflowsQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/workflows`] as const;
+  return [`/api/py-api/solutions/${id}/workflows`] as const;
 };
 
 export const getGetWorkflowsQueryOptions = <
@@ -809,7 +811,7 @@ export function useGetWorkflows<
  * @summary Get parsed plugins
  */
 export const getGetPluginsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/plugins`;
+  return `/api/py-api/solutions/${id}/plugins`;
 };
 
 export const getPlugins = async (
@@ -823,7 +825,7 @@ export const getPlugins = async (
 };
 
 export const getGetPluginsQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/plugins`] as const;
+  return [`/api/py-api/solutions/${id}/plugins`] as const;
 };
 
 export const getGetPluginsQueryOptions = <
@@ -896,7 +898,7 @@ export function useGetPlugins<
  * @summary Get functional flows
  */
 export const getGetFunctionalFlowsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/functional-flows`;
+  return `/api/py-api/solutions/${id}/functional-flows`;
 };
 
 export const getFunctionalFlows = async (
@@ -910,7 +912,7 @@ export const getFunctionalFlows = async (
 };
 
 export const getGetFunctionalFlowsQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/functional-flows`] as const;
+  return [`/api/py-api/solutions/${id}/functional-flows`] as const;
 };
 
 export const getGetFunctionalFlowsQueryOptions = <
@@ -980,11 +982,11 @@ export function useGetFunctionalFlows<
 }
 
 /**
- * Generate structured documentation using AI reasoning
+ * Generate structured documentation using AI reasoning (bulk — all selected sections in one call)
  * @summary Generate AI documentation
  */
 export const getGenerateDocsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/generate-docs`;
+  return `/api/py-api/solutions/${id}/generate-docs`;
 };
 
 export const generateDocs = async (
@@ -1068,10 +1070,306 @@ export const useGenerateDocs = <
 };
 
 /**
+ * @summary List available documentation sections and their generation status
+ */
+export const getListDocSectionsUrl = (id: string) => {
+  return `/api/py-api/solutions/${id}/doc-sections`;
+};
+
+export const listDocSections = async (
+  id: string,
+  options?: RequestInit,
+): Promise<DocSectionInfo[]> => {
+  return customFetch<DocSectionInfo[]>(getListDocSectionsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDocSectionsQueryKey = (id: string) => {
+  return [`/api/py-api/solutions/${id}/doc-sections`] as const;
+};
+
+export const getListDocSectionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDocSections>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDocSections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDocSectionsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDocSections>>> = ({
+    signal,
+  }) => listDocSections(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDocSections>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDocSectionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDocSections>>
+>;
+export type ListDocSectionsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List available documentation sections and their generation status
+ */
+
+export function useListDocSections<
+  TData = Awaited<ReturnType<typeof listDocSections>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDocSections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDocSectionsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Generate one section at a time. The section is merged into existing docs. Supports chunking for large solutions.
+ * @summary Generate a single documentation section with chunking
+ */
+export const getGenerateSectionUrl = (
+  id: string,
+  sectionKey:
+    | "executive_summary"
+    | "business_requirements"
+    | "functional_design"
+    | "technical_design"
+    | "data_model"
+    | "integration"
+    | "customization"
+    | "security_model"
+    | "deployment"
+    | "testing"
+    | "support_operations"
+    | "user_guide"
+    | "solution_inventory"
+    | "environment_config"
+    | "change_log",
+) => {
+  return `/api/py-api/solutions/${id}/generate-section/${sectionKey}`;
+};
+
+export const generateSection = async (
+  id: string,
+  sectionKey:
+    | "executive_summary"
+    | "business_requirements"
+    | "functional_design"
+    | "technical_design"
+    | "data_model"
+    | "integration"
+    | "customization"
+    | "security_model"
+    | "deployment"
+    | "testing"
+    | "support_operations"
+    | "user_guide"
+    | "solution_inventory"
+    | "environment_config"
+    | "change_log",
+  options?: RequestInit,
+): Promise<DocSection> => {
+  return customFetch<DocSection>(getGenerateSectionUrl(id, sectionKey), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerateSectionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateSection>>,
+    TError,
+    {
+      id: string;
+      sectionKey:
+        | "executive_summary"
+        | "business_requirements"
+        | "functional_design"
+        | "technical_design"
+        | "data_model"
+        | "integration"
+        | "customization"
+        | "security_model"
+        | "deployment"
+        | "testing"
+        | "support_operations"
+        | "user_guide"
+        | "solution_inventory"
+        | "environment_config"
+        | "change_log";
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateSection>>,
+  TError,
+  {
+    id: string;
+    sectionKey:
+      | "executive_summary"
+      | "business_requirements"
+      | "functional_design"
+      | "technical_design"
+      | "data_model"
+      | "integration"
+      | "customization"
+      | "security_model"
+      | "deployment"
+      | "testing"
+      | "support_operations"
+      | "user_guide"
+      | "solution_inventory"
+      | "environment_config"
+      | "change_log";
+  },
+  TContext
+> => {
+  const mutationKey = ["generateSection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateSection>>,
+    {
+      id: string;
+      sectionKey:
+        | "executive_summary"
+        | "business_requirements"
+        | "functional_design"
+        | "technical_design"
+        | "data_model"
+        | "integration"
+        | "customization"
+        | "security_model"
+        | "deployment"
+        | "testing"
+        | "support_operations"
+        | "user_guide"
+        | "solution_inventory"
+        | "environment_config"
+        | "change_log";
+    }
+  > = (props) => {
+    const { id, sectionKey } = props ?? {};
+
+    return generateSection(id, sectionKey, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateSectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateSection>>
+>;
+
+export type GenerateSectionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate a single documentation section with chunking
+ */
+export const useGenerateSection = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateSection>>,
+    TError,
+    {
+      id: string;
+      sectionKey:
+        | "executive_summary"
+        | "business_requirements"
+        | "functional_design"
+        | "technical_design"
+        | "data_model"
+        | "integration"
+        | "customization"
+        | "security_model"
+        | "deployment"
+        | "testing"
+        | "support_operations"
+        | "user_guide"
+        | "solution_inventory"
+        | "environment_config"
+        | "change_log";
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateSection>>,
+  TError,
+  {
+    id: string;
+    sectionKey:
+      | "executive_summary"
+      | "business_requirements"
+      | "functional_design"
+      | "technical_design"
+      | "data_model"
+      | "integration"
+      | "customization"
+      | "security_model"
+      | "deployment"
+      | "testing"
+      | "support_operations"
+      | "user_guide"
+      | "solution_inventory"
+      | "environment_config"
+      | "change_log";
+  },
+  TContext
+> => {
+  return useMutation(getGenerateSectionMutationOptions(options));
+};
+
+/**
  * @summary Get generated documentation
  */
 export const getGetDocsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/docs`;
+  return `/api/py-api/solutions/${id}/docs`;
 };
 
 export const getDocs = async (
@@ -1085,7 +1383,7 @@ export const getDocs = async (
 };
 
 export const getGetDocsQueryKey = (id: string) => {
-  return [`/py-api/solutions/${id}/docs`] as const;
+  return [`/api/py-api/solutions/${id}/docs`] as const;
 };
 
 export const getGetDocsQueryOptions = <
@@ -1148,7 +1446,7 @@ export function useGetDocs<
  * @summary Verify generated documentation against knowledge graph
  */
 export const getVerifyDocsUrl = (id: string) => {
-  return `/py-api/solutions/${id}/verify`;
+  return `/api/py-api/solutions/${id}/verify`;
 };
 
 export const verifyDocs = async (
