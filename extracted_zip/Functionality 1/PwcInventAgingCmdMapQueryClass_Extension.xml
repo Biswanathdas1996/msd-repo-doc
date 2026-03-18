@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcInventAgingCmdMapQueryClass_Extension</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+[ExtensionOf(classStr(InventAgingCmdMapQuery))]
+final class PwcInventAgingCmdMapQueryClass_Extension
+{     
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>parmTransDate</Name>
+				<Source><![CDATA[
+    public TransDate parmTransDate()
+    {
+        TransDate       retDate = next parmTransDate();
+
+        if(fetchInventAgingReceiptView && inventTable.isItemBatchActivated())
+        {
+            InventAgingReceiptView  recptView;
+            //TransDate batchDate = InventBatch::find(inventDim.InventBatchId, inventTable.ItemId).prodDate;
+            select firstonly1 recptView order by recptView.TransDate
+                where recptView.ItemId      ==  inventTable.ItemId
+                &&  recptView.inventBatchId ==  inventDim.InventBatchId;
+            TransDate batchDate = recptView.TransDate;
+            retDate =  batchDate != dateNull() ? batchDate : retDate;
+        }
+
+        return retDate;
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

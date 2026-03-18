@@ -42,7 +42,7 @@ from backend.services.xml_parser import (
 from backend.services.source_code_parser import parse_source_code_repo
 from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
-from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS
+from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS, enrich_knowledge_graph_with_llm
 from backend.services.doc_exporter import export_to_docx, export_to_pdf
 
 
@@ -149,6 +149,9 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
     webresources: list[WebResource] = []
     source_info = {}
     form_details = []
+    ax_classes_data: list[dict] = []
+    ax_report_data: list[dict] = []
+    ax_query_data: list[dict] = []
 
     if is_source_code:
         sc_result = parse_source_code_repo(result["output_folder"])
@@ -166,7 +169,6 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
         else:
             sol_metadata.update(source_info)
     elif structure.get("is_ax_fo", False):
-        ax_classes_data = []
         for cf in structure.get("ax_classes", []):
             ax_classes_data.append(parse_ax_class_file(cf))
 
@@ -188,7 +190,6 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
         form_details = parse_form_files_detailed(structure.get("forms", []))
 
         # --- AX queries → feed related tables as entities ---
-        ax_query_data = []
         for qf in structure.get("ax_queries", []):
             q = parse_ax_query_file(qf)
             ax_query_data.append(q)
@@ -197,7 +198,6 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
                     entities.append(Entity(name=table_name, displayName=f"{table_name} (from query: {q['name']})"))
 
         # --- AX reports → feed data sources as references ---
-        ax_report_data = []
         for rf in structure.get("ax_reports", []):
             r = parse_ax_report_file(rf)
             ax_report_data.append(r)
@@ -298,7 +298,24 @@ def _build_solution_data(result: dict, solution_name: str) -> Solution:
             deduped_form_details.append(fd)
     form_details = deduped_form_details
 
-    knowledge_graph = build_knowledge_graph(entities, workflows, plugins, forms, roles, webresources, form_details)
+    # --- Build knowledge graph (heuristic relationships first) ---
+    knowledge_graph = build_knowledge_graph(
+        entities, workflows, plugins, forms, roles, webresources, form_details,
+        ax_classes_data=ax_classes_data if structure.get("is_ax_fo") else None,
+        ax_report_data=ax_report_data if structure.get("is_ax_fo") else None,
+        ax_query_data=ax_query_data if structure.get("is_ax_fo") else None,
+    )
+
+    # --- LLM enrichment: discover deeper relationships ---
+    try:
+        knowledge_graph = enrich_knowledge_graph_with_llm(
+            knowledge_graph,
+            ax_classes_data=ax_classes_data if structure.get("is_ax_fo") else None,
+            ax_report_data=ax_report_data if structure.get("is_ax_fo") else None,
+        )
+    except Exception:
+        pass  # LLM enrichment is best-effort; heuristic graph still usable
+
     functional_flows = generate_functional_flows(knowledge_graph)
 
     sol_data = {

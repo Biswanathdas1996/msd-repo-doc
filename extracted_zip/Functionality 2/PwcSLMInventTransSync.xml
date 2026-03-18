@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcSLMInventTransSync</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+using PwcSLMIntegrationDataProcessor;
+
+class PwcSLMInventTransSync
+{
+    RecordInsertList    insList = new RecordInsertList(tableNum(PwcInventTransSLM));
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>process</Name>
+				<Source><![CDATA[
+    public void process(PwcSLMInventTransSyncContract _contract)
+    {          
+        switch(_contract.parmTransType())
+        {
+            case PwcInventTransSyncType::PurchaseOrder :
+                this.processOrder(_contract.parmTransType(), fieldNum(InventTrans, StatusIssue), StatusIssue::None);
+                break;
+
+            case PwcInventTransSyncType::PurchaseCreditMemo :
+                this.processReturnOrder(_contract.parmTransType(), fieldNum(InventTrans, StatusIssue), StatusIssue::None);
+                break;
+
+            case PwcInventTransSyncType::SalesOrder :
+                this.processOrder(_contract.parmTransType(), fieldNum(InventTrans, StatusReceipt), StatusReceipt::None);
+                break;
+
+            case PwcInventTransSyncType::SalesCreditMemo :
+                this.processReturnOrder(_contract.parmTransType(), fieldNum(InventTrans, StatusReceipt), StatusReceipt::None);
+                break;
+
+            default :
+                this.processOther(_contract.parmTransType());
+                break;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>processOrder</Name>
+				<Source><![CDATA[
+    private void processOrder(PwcInventTransSyncType _type, FieldId _fieldStatusId, int _fieldStatusValue)
+    {
+        InventTrans         invTrans;
+        InventTransOrigin   invTransOrigin;
+        PwcInventTransSLM   invTransSLM;
+        InventDim           invDim;
+        InventLocation      invLocation;
+
+        invTrans.clear();
+        invTransOrigin.clear();
+        invTransSLM.clear();
+        invDim.clear();
+        invLocation.clear();
+
+        while select invTransOrigin
+            where invTransOrigin.ReferenceCategory  ==  this.getTransType(_type)
+            join invTrans
+            where invTrans.InventTransOrigin    ==  invTransOrigin.RecId
+            &&  invTrans.DatePhysical           !=  dateNull()
+            &&  invTrans.(_fieldStatusId)       ==  _fieldStatusValue
+            && invTrans.PwcCreatedFromSLM       ==  NoYes::No
+            join invDim
+            where invDim.inventDimId    ==  invTrans.inventDimId
+            join invLocation
+            where invLocation.InventLocationId  ==  invDim.InventLocationId
+            &&  invLocation.PwcSLMSync  ==  NoYes::Yes
+            notexists join invTransSLM
+            where invTransSLM.RefRecId  ==  invTrans.RecId
+            &&  invTransSLM.Success     ==  NoYes::Yes       
+        {
+            //Prepare request data
+            str body = this.getRequsetContract(invTrans, _type);
+
+            //send data to slm
+            container conResp = this.sendRequestToSLM(body, _type);
+
+            //handle response
+            this.addRecordToList(conResp, invTrans.RecId, body);
+        }
+        insList.insertDatabase();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>processReturnOrder</Name>
+				<Source><![CDATA[
+    private void processReturnOrder(PwcInventTransSyncType _type, FieldId _fieldStatusId, int _fieldStatusValue)
+    {
+        InventTrans         invTrans;
+        InventTransOrigin   invTransOrigin;
+        PwcInventTransSLM   invTransSLM;
+        InventDim           invDim;
+        InventLocation      invLocation;
+
+        invTrans.clear();
+        invTransOrigin.clear();
+        invTransSLM.clear();
+        invDim.clear();
+        invLocation.clear();
+
+        while select invTransOrigin
+            where invTransOrigin.ReferenceCategory  ==  this.getTransType(_type)
+            join invTrans
+            where invTrans.InventTransOrigin    ==  invTransOrigin.RecId
+            &&  invTrans.DatePhysical           !=  dateNull()
+            &&  invTrans.(_fieldStatusId)       !=  _fieldStatusValue
+            && invTrans.PwcCreatedFromSLM       ==  NoYes::No
+            join invDim
+            where invDim.inventDimId    ==  invTrans.inventDimId
+            join invLocation
+            where invLocation.InventLocationId  ==  invDim.InventLocationId
+            &&  invLocation.PwcSLMSync  ==  NoYes::Yes
+            notexists join invTransSLM
+            where invTransSLM.RefRecId  ==  invTrans.RecId
+            &&  invTransSLM.Success     ==  NoYes::Yes
+        {
+            //Prepare request data
+            str body = this.getRequsetContract(invTrans, _type);
+
+            //send data to slm
+            container conResp = this.sendRequestToSLM(body, _type);
+
+            //handle response
+            this.addRecordToList(conResp, invTrans.RecId, body);
+        }
+        insList.insertDatabase();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>processOther</Name>
+				<Source><![CDATA[
+    private void processOther(PwcInventTransSyncType _type)
+    {
+        InventTrans         invTrans;
+        InventTransOrigin   invTransOrigin;
+        PwcInventTransSLM   invTransSLM;
+        InventDim           invDim;
+        InventLocation      invLocation;
+
+
+        invTrans.clear();
+        invTransOrigin.clear();
+        invTransSLM.clear();
+        invDim.clear();
+        invLocation.clear();
+
+        while select invTransOrigin
+            where invTransOrigin.ReferenceCategory  ==  this.getTransType(_type)
+            join invTrans
+            where invTrans.InventTransOrigin    ==  invTransOrigin.RecId
+            &&  invTrans.DatePhysical           !=  dateNull()  
+            && invTrans.PwcCreatedFromSLM       ==  NoYes::No
+            join invDim
+            where invDim.inventDimId    ==  invTrans.inventDimId
+            join invLocation
+            where invLocation.InventLocationId  ==  invDim.InventLocationId
+            &&  invLocation.PwcSLMSync  ==  NoYes::Yes
+            notexists join invTransSLM
+            where invTransSLM.RefRecId  ==  invTrans.RecId
+            &&  invTransSLM.Success     ==  NoYes::Yes
+        {
+            //Prepare request data
+            str body = this.getRequsetContract(invTrans, _type);
+
+            //send data to slm
+            container conResp = this.sendRequestToSLM(body, _type);
+
+            //handle response
+            this.addRecordToList(conResp, invTrans.RecId, body);
+        }
+        insList.insertDatabase();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getTransType</Name>
+				<Source><![CDATA[
+    private InventTransType getTransType(PwcInventTransSyncType _type)
+    {
+        switch(_type)
+        {
+            case PwcInventTransSyncType::PurchaseOrder :
+            case PwcInventTransSyncType::PurchaseCreditMemo :
+                return InventTransType::Purch;
+            break;
+
+            case PwcInventTransSyncType::SalesOrder :
+            case PwcInventTransSyncType::SalesCreditMemo :
+                return InventTransType::Sales;
+            break;
+
+            case PwcInventTransSyncType::TransferShip :
+                return InventTransType::TransferOrderShip;
+            break;
+
+            case PwcInventTransSyncType::TransferReceipt :
+                return InventTransType::TransferOrderReceive;
+            break;
+
+            case PwcInventTransSyncType::InventoryAdj :
+                return InventTransType::InventLossProfit;
+            break;
+
+            default :
+                return 99999;
+            break;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getEntryType</Name>
+				<Source><![CDATA[
+    private str 20 getEntryType(PwcInventTransSyncType _type)
+    {
+        switch(_type)
+        {
+            case PwcInventTransSyncType::PurchaseOrder :
+            case PwcInventTransSyncType::PurchaseCreditMemo :
+                return 'Purchase';
+                break;
+
+            case PwcInventTransSyncType::SalesOrder :
+            case PwcInventTransSyncType::SalesCreditMemo :
+                return 'Sale';
+                break;
+
+            case PwcInventTransSyncType::TransferShip :
+            case PwcInventTransSyncType::TransferReceipt :
+                return 'Transfer';
+                break;
+
+            case PwcInventTransSyncType::InventoryAdj :
+                return 'Adjustment';
+                break;
+
+            default :
+                return '';
+                break;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>sendRequestToSLM</Name>
+				<Source><![CDATA[
+    private container sendRequestToSLM(str _body, PwcInventTransSyncType _type)
+    {
+        PwcSLMIntegrationParameters parameters = PwcSLMIntegrationParameters::find();
+        container   conResp;
+        str     credentials = strFmt('%1:%2', parameters.UserName, parameters.Password);
+        System.Text.Encoding    ascii = System.Text.Encoding::get_ASCII();
+        
+        credentials = System.Convert::ToBase64String(ascii.GetBytes(credentials));
+        Map headerMap = new Map(Types::String, Types::String);
+
+        headerMap.add("Authorization", strFmt('Basic %1',credentials));
+        conResp = PwcWebRequestHelper::sendRequest("Post", this.getApiUrl(_type, parameters), headerMap, "application/json", _body);
+        return conResp;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getApiUrl</Name>
+				<Source><![CDATA[
+    private URL getApiUrl(PwcInventTransSyncType _type, PwcSLMIntegrationParameters _param)
+    {
+        
+        switch(_type)
+        {
+            case PwcInventTransSyncType::PurchaseOrder :
+                return _param.UrlPO;                
+                break;
+
+            case PwcInventTransSyncType::PurchaseCreditMemo :
+                return _param.UrlPOCreditMemo;
+                break;
+
+            case PwcInventTransSyncType::SalesOrder :
+                return _param.UrlSO;
+                break;
+
+            case PwcInventTransSyncType::SalesCreditMemo :
+                return _param.UrlSOCreditMemo;
+                break;
+
+            case PwcInventTransSyncType::TransferShip :
+                return _param.UrlTransferShip;
+                break;
+
+            case PwcInventTransSyncType::TransferReceipt :
+                return _param.UrlTransferReceive;
+                break;
+
+            case PwcInventTransSyncType::InventoryAdj :
+                return _param.UrlAdjustment;
+                break;
+
+            case PwcInventTransSyncType::OtherTrans :
+                return _param.UrlOtherTrans;
+                break;
+
+            default :
+                return '';
+                break;
+        }
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getRequsetContract</Name>
+				<Source><![CDATA[
+    private str getRequsetContract(InventTrans _invTrans, PwcInventTransSyncType _type)
+    {
+        PwcSLMIntegrationParameters           parameters = PwcSLMIntegrationParameters::find();
+        PwcSLMInventTransSyncRequestContract    reqContract = new PwcSLMInventTransSyncRequestContract();
+
+        PwcSLMIntegrationDataService    slmServ = new PwcSLMIntegrationDataService();
+        System.String[] data = slmServ.getData(
+                                    strFmt("DefaultEndpointsProtocol=https;AccountName=%1;AccountKey=%2;EndpointSuffix=core.windows.net",
+                                        parameters.AzureStorageAccountName,
+                                        parameters.AzureStorageAccountKey),
+                                    parameters.CertificateBlobContainerName,
+                                    parameters.CertificateFileName,
+                                    parameters.CertificatePassword,
+                                    this.getRequestDataContract(_invTrans, _type)
+                                );
+
+        reqContract.parmData(data.GetValue(0));
+        reqContract.parmKey(data.GetValue(1));
+        return FormJsonSerializer::serializeClass(reqContract);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>getRequestDataContract</Name>
+				<Source><![CDATA[
+    private str getRequestDataContract(InventTrans    _invTrans, PwcInventTransSyncType _type)
+    {
+        PwcSLMInventTransSyncDataContract   dataContract = new PwcSLMInventTransSyncDataContract();
+        InventTransOrigin   invTransOrigin = _invTrans.inventTransOrigin();
+        dataContract.parmdescription('Good');
+        dataContract.parmDocumentNo(invTransOrigin.ReferenceId);
+        dataContract.parmentryType(this.getEntryType(_type));
+        dataContract.parmItemNo(_invTrans.ItemId);
+        dataContract.parmlocationCode(_invTrans.inventLocationId());
+        dataContract.parmpostingDate(_invTrans.DatePhysical);
+        dataContract.parmquantity(_invTrans.Qty);
+        if(_invTrans.PwcDocketNo)
+        {
+            dataContract.parmreasonCode('Docket');
+            dataContract.parmReferenceNo(_invTrans.PwcDocketNo);
+        }
+        else
+        {
+            dataContract.parmreasonCode('Good');
+            dataContract.parmReferenceNo(invTransOrigin.ReferenceId);
+        }
+        dataContract.parmunitCost(_invTrans.CostAmountPhysical);
+
+        return FormJsonSerializer::serializeClass(dataContract);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>addRecordToList</Name>
+				<Source><![CDATA[
+    private void addRecordToList(container _con, RefRecId    _recId, str _requestJson)
+    {
+        PwcInventTransSLM   invTransSLM;
+        PwcSLMInventTransSyncResponseContract   contract;
+
+        contract = FormJsonSerializer::deserializeObject(
+            classNum(PwcSLMInventTransSyncResponseContract), conPeek(_con,2));
+        if(contract.parmStatus() == "Success")
+        {
+            invTransSLM.Success         =   NoYes::Yes;
+        }
+        else
+        {
+            invTransSLM.Success         =   NoYes::No;
+        }
+        invTransSLM.RefRecId        =   _recId;        
+        invTransSLM.ErrorMsg        =   conPeek(_con, 2);
+        invTransSLM.RequestJson     =   _requestJson;
+        insList.add(invTransSLM);
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

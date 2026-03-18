@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AxClass xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+	<Name>PwcSLMInventTransSyncController</Name>
+	<SourceCode>
+		<Declaration><![CDATA[
+class PwcSLMInventTransSyncController extends SysOperationServiceController
+{
+}
+]]></Declaration>
+		<Methods>
+			<Method>
+				<Name>new</Name>
+				<Source><![CDATA[
+    protected void new()
+    {
+        // This tells the controller what method it should execute as the service.
+        super(classStr(PwcSLMInventTransSync), methodStr(PwcSLMInventTransSync, process), SysOperationExecutionMode::Synchronous);
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>construct</Name>
+				<Source><![CDATA[
+    public static PwcSLMInventTransSyncController construct()
+    {
+        PwcSLMInventTransSyncController      controller;
+
+        controller = new PwcSLMInventTransSyncController();
+
+        controller.parmShowDialog(true);
+        controller.parmShowProgressForm(false);
+
+        return controller;
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>main</Name>
+				<Source><![CDATA[
+    public static void main(Args _args)
+    {
+        PwcSLMInventTransSyncController controller;
+
+        controller = PwcSLMInventTransSyncController::construct();
+
+        controller.startOperation();
+    }
+
+]]></Source>
+			</Method>
+			<Method>
+				<Name>defaultCaption</Name>
+				<Source><![CDATA[
+    protected ClassDescription defaultCaption()
+    {
+        return "Transaction sync to SLM";
+    }
+
+]]></Source>
+			</Method>
+		</Methods>
+	</SourceCode>
+</AxClass>

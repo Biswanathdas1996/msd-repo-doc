@@ -113,10 +113,24 @@ function CircleNode({ data, selected }: NodeProps) {
 }
 
 const EDGE_STYLES: Record<string, { stroke: string; dash?: string }> = {
-  triggers:  { stroke: 'rgba(250,200,60,0.75)' },
-  used_in:   { stroke: 'rgba(100,180,255,0.45)', dash: '4 3' },
-  invokes:   { stroke: 'rgba(180,120,255,0.55)' },
-  has_form:  { stroke: 'rgba(80,220,140,0.45)', dash: '2 4' },
+  triggers:          { stroke: 'rgba(250,200,60,0.75)' },
+  used_in:           { stroke: 'rgba(100,180,255,0.45)', dash: '4 3' },
+  invokes:           { stroke: 'rgba(180,120,255,0.55)' },
+  has_form:          { stroke: 'rgba(80,220,140,0.45)', dash: '2 4' },
+  extends:           { stroke: 'rgba(255,160,80,0.70)' },
+  reads_writes:      { stroke: 'rgba(100,200,255,0.65)', dash: '6 3' },
+  controls:          { stroke: 'rgba(255,100,100,0.70)' },
+  data_contract_for: { stroke: 'rgba(180,180,80,0.55)', dash: '4 2' },
+  controlled_by:     { stroke: 'rgba(255,100,100,0.55)', dash: '4 2' },
+  request_for:       { stroke: 'rgba(120,200,180,0.55)', dash: '3 3' },
+  response_for:      { stroke: 'rgba(120,200,180,0.55)', dash: '3 3' },
+  related_to:        { stroke: 'rgba(160,160,220,0.50)', dash: '2 2' },
+  uses_plugin:       { stroke: 'rgba(87,194,120,0.55)' },
+  produces_data_for: { stroke: 'rgba(200,160,255,0.55)', dash: '5 3' },
+  implements:        { stroke: 'rgba(255,200,100,0.55)', dash: '4 4' },
+  queries:           { stroke: 'rgba(100,180,255,0.55)', dash: '5 2' },
+  uses:              { stroke: 'rgba(200,170,120,0.60)' },
+  modifies:          { stroke: 'rgba(255,140,180,0.65)', dash: '6 2' },
 };
 const DEFAULT_EDGE_STYLE = { stroke: 'rgba(120,120,180,0.4)' };
 
@@ -484,6 +498,16 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
     plugins:   nodes.filter(n => (n.data as NodeData).nodeType === 'Plugin').length,
   }), [nodes]);
 
+  // Derive edge-type legend dynamically from actual graph data (no hardcoding)
+  const activeEdgeTypes = useMemo(() => {
+    const types = new Set<string>();
+    edges.forEach(e => {
+      const rt = (e.data as any)?.relType;
+      if (rt) types.add(rt);
+    });
+    return Array.from(types).sort();
+  }, [edges]);
+
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: 600, position: 'relative' }}>
       <ReactFlow
@@ -581,22 +605,21 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
                 <p style={{ color: 'rgba(140,150,200,0.6)', fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
                   Edge Types
                 </p>
-                {([
-                  ['triggers',  EDGE_STYLES.triggers.stroke,  'solid'],
-                  ['used_in',   EDGE_STYLES.used_in.stroke,   'dashed'],
-                  ['invokes',   EDGE_STYLES.invokes.stroke,   'solid'],
-                ] as const).map(([lbl, color, style]) => (
+                {activeEdgeTypes.map(lbl => {
+                  const eStyle = EDGE_STYLES[lbl] ?? DEFAULT_EDGE_STYLE;
+                  return (
                   <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <svg width={18} height={8} style={{ flexShrink: 0 }}>
                       <line x1={0} y1={4} x2={18} y2={4}
-                        stroke={color as string}
-                        strokeWidth={style === 'solid' ? 2 : 1.5}
-                        strokeDasharray={style === 'dashed' ? '4 3' : undefined}
+                        stroke={eStyle.stroke}
+                        strokeWidth={eStyle.dash ? 1.5 : 2}
+                        strokeDasharray={eStyle.dash}
                       />
                     </svg>
-                    <span style={{ color: '#94a3b8', fontSize: 10 }}>{lbl}</span>
+                    <span style={{ color: '#94a3b8', fontSize: 10 }}>{lbl.replace(/_/g, ' ')}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

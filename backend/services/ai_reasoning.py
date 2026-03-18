@@ -8,6 +8,7 @@ from backend.models.schemas import (
 from backend.services.chunking_engine import (
     create_chunks, chunks_to_context, group_chunks_into_batches
 )
+from backend.services.knowledge_graph import VALID_RELATIONSHIP_TYPES
 from datetime import datetime, timezone
 
 
@@ -78,463 +79,328 @@ def _call_pwc_genai(messages: list[dict], max_tokens: int = 8192) -> str:
     return json.dumps(result)
 
 
+# ---------------------------------------------------------------------------
+# LLM‑based knowledge‑graph enrichment
+# ---------------------------------------------------------------------------
+
+# Caps to keep the LLM prompt within context-window limits
+_MAX_FIELDS_IN_PROMPT = 20
+_MAX_METHODS_IN_PROMPT = 20
+_PROMPT_MAX_CHARS = 60_000
+_LLM_GRAPH_MAX_TOKENS = 4096
+
+
+def enrich_knowledge_graph_with_llm(
+    graph: "KnowledgeGraph",
+    ax_classes_data: list[dict] | None = None,
+    ax_report_data: list[dict] | None = None,
+) -> "KnowledgeGraph":
+    """Call the LLM to discover relationships between components and merge
+    them into the existing KnowledgeGraph.
+
+    The LLM receives a compact summary of ALL nodes (entities, plugins,
+    reports) and their metadata.  It returns a JSON array of relationships
+    that are grounded strictly in what is present in the metadata — nothing
+    fabricated.
+    """
+    from backend.models.schemas import Relationship  # local import to avoid circular
+
+    ax_classes_data = ax_classes_data or []
+    ax_report_data = ax_report_data or []
+
+    # ---- Build compact component summary for the LLM ----
+    components: dict = {
+        "entities": {},
+        "plugins": {},
+        "reports": [],
+    }
+
+    for name, info in graph.entities.items():
+        components["entities"][name] = {
+            "fields": info.fields[:_MAX_FIELDS_IN_PROMPT],
+        }
+
+    for name, info in graph.plugins.items():
+        entry: dict = {
+            "triggerEntity": info.triggerEntity,
+            "description": info.description,
+            "operation": info.operation,
+            "stage": info.stage,
+        }
+        components["plugins"][name] = entry
+
+    # Merge rich class data into plugin entries
+    cls_lookup = {c["name"]: c for c in ax_classes_data if c.get("name")}
+    for pname in list(components["plugins"]):
+        cls = cls_lookup.get(pname)
+        if cls:
+            components["plugins"][pname]["references"] = cls.get("references", [])
+            methods = [m["name"] for m in cls.get("methods", [])]
+            components["plugins"][pname]["methods"] = methods[:_MAX_METHODS_IN_PROMPT]
+            if cls.get("base_class"):
+                components["plugins"][pname]["base_class"] = cls["base_class"]
+
+    for report in ax_report_data:
+        components["reports"].append({
+            "name": report.get("name", ""),
+            "data_sources": report.get("data_sources", []),
+            "parameters": report.get("parameters", []),
+        })
+
+    # Also include the existing heuristic relationships so the LLM knows
+    # what is already covered and can focus on what's missing.
+    existing_rels = [
+        {"source": r.source, "target": r.target, "type": r.type}
+        for r in graph.relationships
+    ]
+
+    component_json = json.dumps(components, indent=2, default=str)
+    existing_rels_json = json.dumps(existing_rels, indent=2)
+
+    # Cap the prompt if the component json is very large
+    if len(component_json) > _PROMPT_MAX_CHARS:
+        component_json = component_json[:_PROMPT_MAX_CHARS] + "\n... (truncated)"
+
+    valid_types_str = ", ".join(VALID_RELATIONSHIP_TYPES)
+
+    system_prompt = f"""You are an expert D365 / X++ code analyst.  You are given a JSON
+summary of ALL components in a solution (entities/tables, classes/plugins, reports).
+Your job is to identify EVERY meaningful relationship between these components.
+
+RULES:
+- ONLY use component names that appear in the provided JSON. Do NOT invent components.
+- Each relationship must have: source, target, type, label.
+  - source / target: EXACT component name from the JSON.
+  - type: one of: {valid_types_str}
+  - label: a short (3-6 word) human-readable description of the relationship.
+- Base your relationships on:
+  - "extension_of" references (class extends another class or entity)
+  - "table_ref" references (class reads/writes a table/entity)
+  - "base_class" inheritance
+  - Controller ↔ Report naming conventions
+  - Contract ↔ Service naming conventions (e.g. *Contract → *Service)
+  - Common-prefix grouping (e.g. PwcSLM* classes form one integration)
+  - Report data_sources referencing tables
+- DO NOT fabricate business logic. Only describe structural relationships.
+- Include ALL relationships — do not skip any. Every component should have
+  at least one relationship if possible.
+
+Return ONLY a JSON object with this structure (no markdown fences, no explanation):
+{{"relationships": [{{"source":"...", "target":"...", "type":"...", "label":"..."}}]}}"""
+
+    user_prompt = f"""## Components
+{component_json}
+
+## Existing relationships (already detected by heuristics)
+{existing_rels_json}
+
+Identify ALL additional relationships not yet in the existing list.
+Also include any corrections to the existing relationships if needed.
+Return the COMPLETE set of relationships (existing + new)."""
+
+    try:
+        raw = _call_pwc_genai(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=_LLM_GRAPH_MAX_TOKENS,
+        )
+
+        # Parse the LLM response
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            raw = raw.rsplit("```", 1)[0]
+
+        data = json.loads(raw)
+        llm_rels = data.get("relationships", [])
+    except Exception:
+        # If LLM call fails, just return the graph as-is with heuristic edges
+        return graph
+
+    # ---- Merge LLM relationships into the graph ----
+    # Build set of valid node names (entities + plugins + workflows)
+    valid_nodes: set[str] = set()
+    valid_nodes.update(graph.entities.keys())
+    valid_nodes.update(graph.plugins.keys())
+    valid_nodes.update(graph.workflows.keys())
+
+    seen: set[tuple[str, str, str]] = {
+        (r.source, r.target, r.type) for r in graph.relationships
+    }
+    new_rels: list[Relationship] = list(graph.relationships)
+
+    for rel in llm_rels:
+        src = rel.get("source", "")
+        tgt = rel.get("target", "")
+        rtype = rel.get("type", "related_to")
+        if not src or not tgt or src == tgt:
+            continue
+        # Only accept relationships between known nodes
+        if src not in valid_nodes or tgt not in valid_nodes:
+            continue
+        key = (src, tgt, rtype)
+        if key not in seen:
+            seen.add(key)
+            new_rels.append(Relationship(source=src, target=tgt, type=rtype))
+
+    # Return a new graph with the enriched relationships
+    from backend.models.schemas import KnowledgeGraph as KG
+    return KG(
+        entities=graph.entities,
+        workflows=graph.workflows,
+        plugins=graph.plugins,
+        roles=graph.roles,
+        webResources=graph.webResources,
+        relationships=new_rels,
+    )
+
+
 SECTION_CONFIGS = {
-    # --- 1. Executive Summary / Solution Overview ---
-    "executive_summary": {
-        "title": "Executive Summary / Solution Overview",
+    # --- 1. Component Overview ---
+    "component_overview": {
+        "title": "Component Overview",
         "order": 1,
         "prompt": (
-            "Generate an Executive Summary for this Microsoft Dynamics CRM solution based STRICTLY on the metadata provided. Include:\n"
-            "- Solution name, version, and publisher (from solution metadata)\n"
-            "- Summary of what the solution contains: list the EXACT counts from the knowledge graph summary:\n"
-            "  entity_count, workflow_count, plugin_count, role_count (use the exact numbers, do not round or estimate)\n"
-            "- Form count: count ONLY the forms that are listed in the metadata. Do NOT add forms that don't exist.\n"
-            "- List the actual component NAMES as they appear in the metadata\n"
-            "- Key stakeholders: ONLY if security roles are present in the metadata, list them; otherwise state 'No security roles detected'\n\n"
-            "STRICTLY FORBIDDEN in this section:\n"
-            "- Do NOT fabricate business objectives, benefits, or ROI claims\n"
-            "- Do NOT invent 'business context' beyond what component names suggest\n"
-            "- Do NOT describe what workflows or plugins DO unless their steps/descriptions are in the metadata\n"
-            "Present this as a professional executive-level overview."
+            "Generate a COMPLETE Component Overview for this solution. "
+            "This section must list EVERY component found in the solution metadata so that "
+            "anyone reading it (including a non-technical person) knows exactly what building blocks exist.\n\n"
+            "### Solution Summary\n"
+            "State the solution name/type, total component counts from the knowledge graph summary "
+            "(entity_count, workflow_count, plugin_count, role_count, form_count, webresource_count). "
+            "Use the EXACT numbers — do not round or estimate.\n\n"
+            "### Tables / Entities / Views\n"
+            "List every entity/table/view in a table:\n"
+            "| # | Name | Display Name | Type (Table / View / Data Entity) | Field Count | Purpose (1 sentence based on name) |\n\n"
+            "### Classes / Plugins / Extensions\n"
+            "List every class, plugin, or extension in a table:\n"
+            "| # | Name | Type (Plugin / Extension / Controller / Contract / Service) | Target / Related Entity | Description |\n"
+            "For 'Description': use the metadata description if available; otherwise write a ONE-sentence purpose derived "
+            "strictly from the class name and its extension target — do NOT fabricate business logic.\n\n"
+            "### Reports\n"
+            "If any SSRS reports or report-related components exist, list them:\n"
+            "| # | Report Name | Data Source | Related Entities |\n\n"
+            "### Forms\n"
+            "| # | Form Name | Entity |\n"
+            "List ONLY forms present in the metadata.\n\n"
+            "### Security Roles\n"
+            "If any roles exist, list them; otherwise state 'No security roles detected.'\n\n"
+            "### Web Resources\n"
+            "If any exist, list them; otherwise state 'No web resources detected.'\n\n"
+            "RULES:\n"
+            "- Every single component in the metadata MUST appear in this section — nothing should be missing.\n"
+            "- Use the EXACT names from the metadata.\n"
+            "- Keep descriptions short and factual — do NOT invent business logic."
         ),
     },
-    # --- 2. Business Requirements Document (BRD) ---
-    "business_requirements": {
-        "title": "Business Requirements Document (BRD)",
+    # --- 2. How Everything Links Together ---
+    "component_linkage": {
+        "title": "How Everything Links Together",
         "order": 2,
         "prompt": (
-            "Generate a Business Requirements Document based STRICTLY on the solution metadata. Include:\n"
-            "- Business objectives: state ONLY that the solution manages the entities listed in the metadata.\n"
-            "  Do NOT invent specific business goals like 'streamline approvals' or 'increase revenue tracking'\n"
-            "  unless a workflow step explicitly says so.\n"
-            "- Stakeholders: list ONLY from security roles found in metadata; if none, state 'No security roles detected in solution metadata'\n"
-            "- Business workflows: For each workflow, state ONLY:\n"
-            "  - Its exact name, trigger entity, and trigger event from metadata\n"
-            "  - Its actual steps from the 'steps' array (if steps only contain a file reference, state 'Detailed steps not available in metadata')\n"
-            "- Functional requirements table: FR-01, FR-02, etc.\n"
-            "  Format: | ID | Description | Related Component | Source |\n"
-            "  The Description must describe ONLY what the metadata shows (e.g., 'Plugin executes on Create of Account (Pre-operation)')\n"
-            "  Do NOT invent requirements like 'Revenue validation' or 'Email notifications' unless those appear in steps/descriptions\n"
-            "- Non-functional requirements: Do NOT include this section. Non-functional requirements cannot be determined from solution metadata alone.\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Do NOT invent business rules, thresholds, or conditions not in the metadata\n"
-            "- Do NOT describe workflow logic beyond what the steps array contains\n"
-            "- Do NOT fabricate approval processes, notification flows, or escalation rules"
+            "Generate a section that explains HOW all the components in this solution are connected to each other. "
+            "This section is written for a NON-TECHNICAL person — use simple, everyday language. "
+            "Avoid jargon. Imagine you are explaining this to a business manager who has never written code.\n\n"
+            "### Big Picture\n"
+            "Start with a 3-5 sentence plain-English summary of what this solution does overall, "
+            "based ONLY on the component names and their relationships in the metadata.\n\n"
+            "### How the Pieces Fit Together\n"
+            "For EACH logical group of related components, write a short paragraph (3-6 sentences) explaining:\n"
+            "- What the group is about (e.g., 'Inventory Aging Report' or 'SLM Integration')\n"
+            "- Which tables/entities store the data\n"
+            "- Which classes/plugins read or modify that data\n"
+            "- Which reports display that data\n"
+            "- How a user action (e.g., running a report, syncing data) flows through the components\n"
+            "Use analogies where helpful (e.g., 'Think of the Controller as the button that starts the process').\n\n"
+            "### Component Relationship Map\n"
+            "Create a simple table showing every connection between components:\n"
+            "| Component A | Relationship | Component B | What This Means (plain English) |\n"
+            "Examples of relationships: 'extends', 'reads data from', 'writes data to', 'controls', 'sends data to', 'receives data from'.\n\n"
+            "### Data Flow Summary\n"
+            "For each major data flow in the solution, describe it as a numbered sequence of simple steps:\n"
+            "1. User does X → 2. Component A processes it → 3. Data goes to B → 4. Result shown in C\n\n"
+            "RULES:\n"
+            "- Use ONLY component names from the metadata — do NOT invent components.\n"
+            "- Keep language simple — no technical terms like 'extension', 'class', 'method' without explaining them.\n"
+            "- Base relationships ONLY on what the metadata shows (extension targets, entity references, etc.).\n"
+            "- Do NOT fabricate business logic or detailed processing rules."
         ),
     },
-    # --- 3. Functional Design Document (FDD) ---
-    "functional_design": {
-        "title": "Functional Design Document (FDD)",
+    # --- 3. Feature List ---
+    "feature_list": {
+        "title": "Feature List",
         "order": 3,
         "prompt": (
-            "Generate a Functional Design Document based STRICTLY on the metadata. Include:\n"
-            "- Module breakdown: group entities by their relationships (shared workflows/plugins)\n"
-            "- Entity relationships: describe ONLY lookup fields (Type=Lookup) found in entity field metadata\n"
-            "- Business process flows: For each workflow, show ONLY:\n"
-            "  - Its name, trigger entity, trigger event\n"
-            "  - Its steps EXACTLY as listed in the metadata 'steps' array\n"
-            "  - Its conditions EXACTLY as listed in the metadata 'conditions' array\n"
-            "  - If steps contain only a file reference, state: 'Detailed workflow logic not available in solution metadata'\n"
-            "- Forms: list ONLY forms that appear in the metadata. Use the EXACT form names and counts from metadata.\n"
-            "  DO NOT fabricate forms for entities that have no forms listed.\n"
-            "  If an entity has zero forms in the metadata, state: 'No forms detected for this entity'\n"
-            "- Dashboards: ONLY if detected in metadata; otherwise state 'No dashboards detected in solution'\n"
-            "- Security roles mapping: ONLY if roles are present in metadata\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Do NOT describe what a workflow 'does' beyond its listed steps\n"
-            "- Do NOT invent form names, Quick Create forms, or views not in metadata\n"
-            "Use table format: | Feature | Dynamics Component | Component Type | Description |"
+            "Generate a complete FEATURE LIST for this solution. A 'feature' is a user-facing capability or "
+            "system capability that the solution provides — something a business person would recognize as useful.\n\n"
+            "Analyze ALL components in the metadata (entities, classes/plugins, reports, views, extensions) "
+            "and group them into distinct features.\n\n"
+            "### Feature Summary Table\n"
+            "| # | Feature Name | Description (1-2 sentences, non-technical) | Components Involved |\n\n"
+            "For each feature derive the name from the component names and their relationships. "
+            "The description should explain what value this feature provides in plain business language.\n"
+            "The 'Components Involved' column must list the EXACT component names from the metadata.\n\n"
+            "### Feature Details\n"
+            "For EACH feature identified above, create a sub-section:\n"
+            "#### Feature: [Feature Name]\n"
+            "- **What it does**: 2-3 sentences in plain English explaining the feature's purpose.\n"
+            "- **Components**:\n"
+            "  | Component | Type | Role in this Feature |\n"
+            "  List every component that participates in this feature with its type "
+            "(Table, View, Class, Extension, Report, Controller, Contract, etc.) "
+            "and what role it plays (e.g., 'Stores aging data', 'Runs the report', 'Adds custom fields').\n"
+            "- **How it works (simplified)**: A 3-5 step plain-English description of how the feature works end-to-end, "
+            "from the user's perspective.\n\n"
+            "RULES:\n"
+            "- Every component in the metadata MUST belong to at least one feature.\n"
+            "- Feature names should be business-friendly (e.g., 'Inventory Aging Report with Custom Fields', "
+            "not 'PwcInventAgingCmdAggregateSelected_Extension').\n"
+            "- Do NOT invent features that have no supporting components in the metadata.\n"
+            "- Do NOT describe internal code logic — keep it at the 'what does the user see/get' level."
         ),
     },
-    # --- 4. Technical Design Document (TDD) ---
-    "technical_design": {
-        "title": "Technical Design Document (TDD)",
+    # --- 4. Feature Flows ---
+    "feature_flows": {
+        "title": "Feature Flows",
         "order": 4,
         "prompt": (
-            "Generate a Technical Design Document based STRICTLY on the metadata. Include:\n"
-            "### Plugin Registration Table (CRITICAL — use EXACT metadata values)\n"
-            "| Plugin Name | Assembly | Target Entity | Message | Stage | Execution Mode | Execution Order | Filtering Attributes | Description |\n"
-            "For each plugin, populate ALL columns from the metadata. If a value is not present, write 'N/A'.\n"
-            "IMPORTANT: The 'Description' column must contain ONLY the exact description from the metadata.\n"
-            "Do NOT expand or interpret plugin names into functional descriptions.\n"
-            "If description is N/A, leave it as N/A — do NOT write things like 'validates account data' just because the plugin is named AccountValidation.\n\n"
-            "### Workflow Definition Table\n"
-            "| Workflow Name | Trigger Entity | Trigger Event | Mode | Steps | Conditions |\n"
-            "List ALL workflows with their EXACT steps and conditions from the metadata.\n"
-            "If steps contain only a file reference (e.g. 'Process defined in X.xml'), state that — do NOT fabricate step details.\n\n"
-            "### Components Summary\n"
-            "| Component Type | Name | Target Entity | Description |\n"
-            "List every plugin, workflow, web resource found in the metadata.\n\n"
-            "### Integration Points\n"
-            "Document ONLY integrations where an EXPLICIT external system reference appears in:\n"
-            "- A plugin description field (the actual 'description' value, not the plugin name)\n"
-            "- A workflow step string (an actual step from the 'steps' array)\n"
-            "Component names alone (e.g., 'notification_service', 'contact_sync') are NOT sufficient evidence of external integration.\n"
-            "For each genuine reference found, state: 'Evidence: [exact quoted text from metadata field]'\n"
-            "DO NOT fabricate REST API endpoints, Azure services, authentication methods, or middleware.\n"
-            "If no concrete integration evidence is found, state: 'No external integration endpoints detected in solution metadata.'"
-        ),
-    },
-    # --- 5. Data Model Documentation ---
-    "data_model": {
-        "title": "Data Model Documentation",
-        "order": 5,
-        "prompt": (
-            "Generate comprehensive Data Model Documentation based STRICTLY on the metadata. Include:\n"
-            "### Entity Schema Tables (CRITICAL — use EXACT field metadata)\n"
-            "For EACH entity, generate a table with these EXACT columns:\n"
-            "| Field Name | Display Name | Type | Required | Description |\n"
-            "Populate from the field_details in the metadata. The 'Required' column MUST match the metadata exactly (true/false).\n"
-            "DO NOT change any field's required status from what the metadata states.\n"
-            "The 'Description' column must use ONLY the description from metadata, or 'N/A' if none exists.\n\n"
-            "### Entity Purpose Summary\n"
-            "| Entity | Display Name | Field Count | Forms | Related Workflows | Related Plugins |\n"
-            "The Field Count MUST match the exact number of fields in the metadata for that entity.\n"
-            "The Forms column MUST list only forms from the metadata (or 'None detected').\n\n"
-            "### Lookup Relationships\n"
-            "List ONLY fields with Type=Lookup as entity relationships.\n"
-            "Show: Source Entity, Field Name, Target Entity (inferred from field name ONLY).\n"
-            "DO NOT fabricate relationships not evidenced by lookup fields.\n\n"
-            "### Option Set Fields\n"
-            "List ONLY fields with Type=Picklist or Type=OptionSet found in the metadata.\n"
-            "If none found, state: 'No option set fields detected.'\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Inventing field descriptions not in the metadata\n"
-            "- Changing field types or required status from what metadata states\n"
-            "- Adding relationships between entities that are not evidenced by Lookup fields\n"
-            "- Fabricating entity-relationship diagrams beyond what lookup fields prove"
-        ),
-    },
-    # --- 6. Integration Documentation ---
-    "integration": {
-        "title": "Integration Documentation",
-        "order": 6,
-        "prompt": (
-            "Generate Integration Documentation based STRICTLY on what the metadata evidences.\n\n"
-            "### IMPORTANT: What Counts as Integration Evidence\n"
-            "Integration evidence MUST come from one of these metadata fields:\n"
-            "1. A plugin 'description' field that EXPLICITLY mentions an external system, URL, or service name\n"
-            "2. A workflow 'steps' array entry that EXPLICITLY references an external system\n"
-            "3. A web resource description that references an external endpoint\n\n"
-            "The following are NOT integration evidence:\n"
-            "- Component NAMES that SUGGEST integration (e.g., 'contact_sync', 'notification_service')\n"
-            "  These are just naming conventions and do not prove external integration exists\n"
-            "- Plugin registration metadata (entity, message, stage) — these are internal Dynamics CRM registrations\n"
-            "- Workflow trigger events — these are internal Dynamics CRM events\n\n"
-            "### If Integration Evidence is Found\n"
-            "For EACH detected reference, document:\n"
-            "| Integration Point | Exact Evidence (quoted from metadata) | Component Type | Component Name |\n"
-            "State: 'The following integration points are identified from explicit references in the metadata. "
-            "Actual integration details (endpoints, authentication, payloads) are not present in the solution metadata "
-            "and must be verified with the development team.'\n\n"
-            "### If NO Integration Evidence is Found\n"
-            "State: 'No external integration points were detected in the solution metadata. "
-            "Plugin registrations and workflow definitions in this solution reference only internal Dynamics CRM operations. "
-            "If external integrations exist, they may be implemented in plugin source code (assemblies) which is not "
-            "included in the solution metadata.'\n\n"
-            "DO NOT fabricate:\n"
-            "- API endpoint URLs\n"
-            "- Authentication methods or credentials\n"
-            "- Message formats or data payloads\n"
-            "- Azure service connections\n"
-            "- Middleware configurations\n"
-            "- Integration architecture diagrams based on component names alone"
-        ),
-    },
-    # --- 7. Customization Documentation ---
-    "customization": {
-        "title": "Customization Documentation",
-        "order": 7,
-        "prompt": (
-            "Generate Customization Documentation listing ALL custom components from the metadata. Include:\n"
-            "### Plugins\n"
-            "| Plugin Name | Target Entity | Message | Stage | Execution Mode | Execution Order | Assembly | Description |\n"
-            "Populate ALL columns from metadata. Use 'N/A' for missing values.\n"
-            "IMPORTANT: The 'Description' column must contain ONLY the description from the metadata.\n"
-            "Do NOT invent what the plugin 'does' — plugin metadata contains ONLY registration info, NOT source code.\n\n"
-            "### Custom Workflows\n"
-            "| Workflow Name | Trigger Entity | Trigger Event | Mode | Step Count | Has Conditions |\n"
-            "Count steps and conditions from the ACTUAL metadata arrays only.\n\n"
-            "### Forms\n"
-            "| Form Name | Entity | Source File | Tab Count | Section Count | Control Count |\n"
-            "List ONLY forms found in the metadata. The EXACT count must match the metadata.\n"
-            "DO NOT add forms for entities that have none in the metadata.\n\n"
-            "### Web Resources\n"
-            "| Resource Name | Type | Related Entity | Description |\n"
-            "List ONLY from metadata. If none detected, state 'No web resources detected.'\n\n"
-            "### Custom Entities\n"
-            "List all entities found in the solution with their field counts.\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Inventing form tab/section/control counts not in metadata\n"
-            "- Adding web resources not present in metadata\n"
-            "- Describing plugin business logic (only registration metadata is available)\n"
-            "- Fabricating form layouts or field placements not in metadata"
-        ),
-    },
-    # --- 8. Security Model ---
-    "security_model": {
-        "title": "Security Model",
-        "order": 8,
-        "prompt": (
-            "Generate Security Model documentation based STRICTLY on the metadata.\n\n"
-            "### Security Roles Found in Solution\n"
-            "If security roles are present in the metadata, for each role document:\n"
-            "| Role Name | Description | Privilege Count | Privileges |\n"
-            "List the actual privileges extracted from the metadata.\n\n"
-            "### Role-Entity Access (from metadata only)\n"
-            "If role privilege names reference entity names, create a mapping table:\n"
-            "| Role | Entity | Privileges |\n"
-            "ONLY populate this if the privilege names in the metadata contain entity references.\n\n"
-            "If NO security roles are found in the metadata, state clearly:\n"
-            "'No security roles were detected in the solution metadata. "
-            "Security configuration may exist in the Dynamics environment but is not included in this solution package.'\n\n"
-            "DO NOT fabricate:\n"
-            "- Business units\n"
-            "- Teams\n"
-            "- Field security profiles\n"
-            "- Access control models\n"
-            "unless they are explicitly present in the metadata."
-        ),
-    },
-    # --- 9. Deployment Documentation ---
-    "deployment": {
-        "title": "Deployment Documentation",
-        "order": 9,
-        "prompt": (
-            "Generate Deployment Documentation. Include:\n"
-            "### Solution Package Details (from metadata)\n"
-            "- Solution Name / Unique Name: from solution metadata\n"
-            "- Version: from solution metadata\n"
-            "- Publisher: from solution metadata\n"
-            "- Managed/Unmanaged: from solution metadata (if detected)\n"
-            "- Dependencies: from solution metadata (if detected)\n\n"
-            "### Solution Components Count\n"
-            "| Component Type | Count |\n"
-            "List EXACT counts from the metadata: entities, workflows, plugins, forms, roles, web resources.\n"
-            "These counts MUST match the metadata exactly.\n\n"
-            "### Pre-deployment Component Checklist (from metadata)\n"
-            "Generate a checklist using ONLY the actual component names from the metadata:\n"
-            "| # | Component | Type | Pre-deployment Check |\n"
-            "For each plugin: 'Verify [exact plugin name] assembly is registered on target'\n"
-            "For each workflow: 'Verify [exact workflow name] trigger entity [entity name] exists on target'\n"
-            "For each entity: 'Verify [exact entity name] schema exists on target'\n"
-            "Use ONLY component names from the metadata. Do NOT add generic checklist items.\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Generic deployment checklists not tied to specific components in this solution\n"
-            "- Fabricating migration scripts, rollback procedures, or PowerShell scripts\n"
-            "- Fabricating Azure DevOps pipeline configurations\n"
-            "- Inventing backup commands or database scripts\n"
-            "- Adding ANY checklist item that does not reference a specific component from the metadata"
-        ),
-    },
-    # --- 10. Testing Documentation ---
-    "testing": {
-        "title": "Testing Documentation",
-        "order": 10,
-        "prompt": (
-            "Generate Testing Documentation with structured test cases derived from ACTUAL solution components.\n\n"
-            "### Test Plan Overview\n"
-            "- Scope: testing of the components found in this solution\n"
-            "- List the specific entities, workflows, and plugins to be tested by name\n\n"
-            "### Test Cases from Workflows\n"
-            "For EACH workflow in the metadata, generate 1-2 test cases:\n\n"
-            "| Test ID | Workflow | Scenario | Preconditions | Steps | Expected Result | Type |\n"
-            "|---------|----------|----------|---------------|-------|-----------------|------|\n\n"
-            "CRITICAL TEST CASE RULES — VIOLATION IS A FAILURE:\n"
-            "1. The 'Scenario' must be: 'Test workflow trigger: [workflow name] triggers on [entity] [event]'\n"
-            "2. The 'Preconditions' must be: 'User has access to [entity]' — NO specific data values\n"
-            "3. The 'Steps' must reference ONLY the component's metadata fields:\n"
-            "   CORRECT: '1. Create/Update [entity from metadata] record. 2. Verify [workflow name from metadata] triggers. 3. Check System Jobs for completion'\n"
-            "   WRONG: '1. Set Revenue to $150,000. 2. Verify approval threshold check passes'\n"
-            "   WRONG: '1. Enter customer data. 2. Verify validation rules execute'\n"
-            "4. The 'Expected Result' must be ONLY 'Component executes without errors':\n"
-            "   CORRECT: 'Workflow executes without errors'\n"
-            "   WRONG: 'Email notification is sent to manager'\n"
-            "   WRONG: 'Revenue threshold validation passes'\n"
-            "5. Do NOT reference workflow STEP NAMES as testable actions:\n"
-            "   A step named 'Check approval threshold' in the metadata does NOT mean you know what the threshold is.\n"
-            "   WRONG: 'Verify approval threshold of $100,000 is enforced'\n"
-            "   You do NOT know the threshold. You do NOT know what is being checked.\n\n"
-            "### Test Cases from Plugins\n"
-            "For EACH plugin in the metadata, generate 1-2 test cases:\n\n"
-            "| Test ID | Plugin | Scenario | Entity | Message | Expected Result | Type |\n"
-            "|---------|--------|----------|--------|---------|-----------------|------|\n\n"
-            "PLUGIN TEST RULES:\n"
-            "- Scenario: 'Verify plugin fires on [Message] of [Entity] at [Stage] stage'\n"
-            "- Expected Result: 'Plugin executes without throwing exception'\n"
-            "- You do NOT know what validation the plugin performs or what business rules it enforces.\n"
-            "- WRONG: 'Verify duplicate detection blocks duplicate accounts'\n"
-            "- WRONG: 'Verify revenue validation rejects invalid amounts'\n\n"
-            "### Test Coverage Matrix\n"
-            "| Component | Component Type | Test IDs | Coverage |\n\n"
-            "IMPORTANT: Use clean, well-formatted markdown tables."
-        ),
-    },
-    # --- 11. Support & Operations Guide ---
-    "support_operations": {
-        "title": "Support & Operations Guide",
-        "order": 11,
-        "prompt": (
-            "Generate a Support & Operations Guide based on the ACTUAL solution components.\n\n"
-            "### Component Monitoring Table (from metadata)\n"
-            "For each plugin found in the metadata:\n"
-            "| Plugin Name | Entity | Message | Stage | Execution Mode | Log Location |\n"
-            "The 'Log Location' column must be ONLY: 'Plugin Trace Log' for sync plugins, 'System Jobs + Plugin Trace Log' for async plugins.\n"
-            "Do NOT describe what the plugin does.\n\n"
-            "### Workflow Monitoring Table (from metadata)\n"
-            "For each workflow:\n"
-            "| Workflow Name | Trigger Entity | Trigger | Mode | Log Location |\n"
-            "The 'Log Location' must be ONLY: 'System Jobs' for background workflows, 'Plugin Trace Log' for real-time workflows.\n\n"
-            "### Troubleshooting per Component (from metadata)\n"
-            "For EACH plugin and workflow from the metadata, generate ONE row:\n"
-            "| Component Name | Type | Stage/Mode (from metadata) | Where to Check Logs |\n"
-            "The 'Where to Check Logs' column must be ONLY:\n"
-            "- 'Plugin Trace Log' for plugins\n"
-            "- 'System Jobs' for async workflows/plugins\n"
-            "Do NOT invent specific error messages, failure scenarios, or resolution steps.\n"
-            "Do NOT describe what the component does or what could go wrong with its business logic.\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Generic troubleshooting guides not referencing specific components from this solution\n"
-            "- Invented error messages or failure scenarios\n"
-            "- Azure Application Insights or any monitoring tool not evidenced in metadata\n"
-            "- Fabricated logging configurations or log file paths"
-        ),
-    },
-    # --- 12. User Guide ---
-    "user_guide": {
-        "title": "User Guide",
-        "order": 12,
-        "prompt": (
-            "Generate a User Guide for business users based on the ACTUAL solution components.\n\n"
-            "For EACH entity in the metadata:\n"
-            "### [Entity Name]\n"
-            "- Purpose: State which entity this is based on its name. Do NOT invent detailed business purposes.\n"
-            "- Key fields: list the ACTUAL fields from metadata with their display names and whether they are required\n"
-            "- Available forms: list ONLY forms found in the metadata for this entity.\n"
-            "  If no forms exist for this entity, state: 'No custom forms detected in solution metadata'\n"
-            "- Related workflows: list the ACTUAL workflows that trigger on this entity\n"
-            "- Related plugins: list the ACTUAL plugins that fire on this entity\n\n"
-            "### Business Process Guides\n"
-            "For each workflow, provide a user-friendly description:\n"
-            "- State the workflow name, what entity triggers it, and on what event\n"
-            "- If the workflow has detailed steps in the metadata, list them\n"
-            "- If the workflow steps contain only a file reference, state:\n"
-            "  'This workflow's detailed steps are defined in a workflow definition file. Contact your administrator for step details.'\n"
-            "Do NOT invent step-by-step business processes not present in the metadata.\n\n"
-            "Do NOT include a FAQ section. FAQs require knowledge of actual system behavior which is not available in solution metadata.\n\n"
-            "Write in end-user-friendly language. Use actual field names and form names from the metadata.\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Describing what happens when a user creates/updates a record beyond listing which plugins/workflows trigger\n"
-            "- Inventing user instructions not backed by form metadata\n"
-            "- Fabricating business process descriptions beyond what step names show"
-        ),
-    },
-    # --- 13. Solution Inventory ---
-    "solution_inventory": {
-        "title": "Solution Inventory",
-        "order": 13,
-        "prompt": (
-            "Generate a complete Solution Inventory listing EVERY component from the metadata.\n\n"
-            "### Entities\n"
-            "| # | Entity Name | Display Name | Field Count | Required Fields | Forms |\n"
-            "For each entity, count fields with required=true and list form names.\n\n"
-            "### Entity Field Details\n"
-            "For EACH entity, generate a sub-table:\n"
-            "#### [Entity Name] Fields\n"
-            "| Field Name | Display Name | Type | Required |\n"
-            "Use EXACT values from field_details in the metadata.\n\n"
-            "### Plugins\n"
-            "| # | Plugin Name | Target Entity | Message | Stage | Execution Mode | Description |\n\n"
-            "### Workflows\n"
-            "| # | Workflow Name | Trigger Entity | Trigger Event | Mode | Step Count | Condition Count |\n\n"
-            "### Forms\n"
-            "| # | Form Name | Entity | Source File |\n"
-            "List ONLY forms from the metadata.\n\n"
-            "### Web Resources\n"
-            "| # | Name | Type | Related Entity | Description |\n"
-            "If none, state 'No web resources detected.'\n\n"
-            "### Security Roles\n"
-            "| # | Role Name | Privilege Count | Description |\n"
-            "If none, state 'No security roles detected.'\n\n"
-            "This inventory must be EXHAUSTIVE — every component in the metadata must appear."
-        ),
-    },
-    # --- 14. Configuration & Environment Details ---
-    "environment_config": {
-        "title": "Configuration & Environment Details",
-        "order": 14,
-        "prompt": (
-            "Generate Configuration & Environment Details based on the solution metadata.\n\n"
-            "### Solution Package Information\n"
-            "| Property | Value |\n"
-            "| Solution Name | [from metadata] |\n"
-            "| Version | [from metadata] |\n"
-            "| Publisher | [from metadata] |\n"
-            "| Managed | [from metadata, or 'Not specified'] |\n"
-            "| Description | [from metadata] |\n"
-            "| Dependencies | [from metadata, or 'None detected'] |\n\n"
-            "### Component Summary\n"
-            "| Component Type | Count | Details |\n"
-            "Use EXACT counts from the metadata. These MUST match the metadata exactly.\n\n"
-            "Do NOT include a generic environment deployment matrix. Only document what is in the metadata.\n\n"
-            "### Plugin Registration Requirements\n"
-            "For each plugin found, document the registration requirements using actual metadata:\n"
-            "| Plugin | Assembly | Entity | Message | Stage | Mode |\n\n"
-            "STRICTLY FORBIDDEN:\n"
-            "- Fabricating Azure configuration, connection strings, or secrets\n"
-            "- Inventing environment variables or application settings\n"
-            "- Describing integration endpoints not evidenced in metadata\n"
-            "- Adding server names, URLs, or credentials"
-        ),
-    },
-    # --- 15. Change Log / Version History ---
-    "change_log": {
-        "title": "Change Log / Version History",
-        "order": 15,
-        "prompt": (
-            "Generate a Change Log / Version History section.\n\n"
-            "### Current Version\n"
-            "| Property | Value |\n"
-            "| Version | [from solution metadata] |\n"
-            "| Publisher | [from solution metadata] |\n\n"
-            "### Initial Release Inventory\n"
-            "Document the current solution components as version 1.0:\n"
-            "| Version | Date | Component Type | Component Name | Change Description |\n"
-            "List every entity, workflow, plugin, form found in the metadata as 'Initial release'.\n\n"
-            "Do NOT include a version history template or change management process section.\n"
-            "Only document what is actually present in the solution metadata.\n"
-            "Do NOT generate any generic guidance or templates."
-        ),
-    },
-    # --- 16. Solution Flow Diagram (Mermaid) ---
-    "solution_flow_diagram": {
-        "title": "Solution Flow Diagram",
-        "order": 16,
-        "prompt": (
-            "Generate a comprehensive Mermaid diagram that visualises the ENTIRE solution flow. "
-            "The output MUST be ONLY valid Mermaid markup inside a single ```mermaid code fence — no prose before or after the diagram.\n\n"
-            "Use a `flowchart TD` (top-down) layout with the following structure:\n\n"
-            "1. **Entity subgraphs** — create a `subgraph` for each entity detected in the metadata. "
-            "Inside each subgraph list the entity's key required fields as nodes.\n"
-            "2. **Plugin nodes** — for every plugin, add a node labelled `PluginName\\n(Message · Stage)` and draw an edge FROM the target entity TO the plugin.\n"
-            "3. **Workflow nodes** — for every workflow, add a node labelled `WorkflowName\\n(Trigger · Mode)` and draw an edge FROM the trigger entity TO the workflow.\n"
-            "4. **Form nodes** — for every form, add a node and link it to its parent entity with a dashed edge.\n"
-            "5. **Security role nodes** — if roles exist, add them in a separate subgraph and link to the entities whose privileges they reference.\n"
-            "6. **Cross-entity relationships** — ONLY if a workflow's 'relatedEntities' array or a plugin's 'triggerEntity' explicitly names a SECOND entity in the metadata, draw an edge. Do NOT infer relationships from component names.\n\n"
-            "Styling rules:\n"
-            "- Use QUOTED labels for every node: `nodeId[\"Label text\"]`.\n"
-            "- Differentiate component types by prefix/emoji in the label, NOT by special bracket shapes. "
-            "  Examples: `ent_acct[\"Entity: Account\"]`, `plg_val[\"Plugin: ValidateAccount\"]`, `wf_welcome[\"Workflow: Welcome Email\"]`, `frm_main[\"Form: Main Form\"]`, `role_admin[\"Role: System Admin\"]`.\n"
-            "- NEVER use double-brace hexagon syntax `{{ }}` — it causes parser errors.\n"
-            "- NEVER use `<br>` or `<br/>` HTML tags inside node labels. Keep each label on a single line. Use a dash or pipe to separate details (e.g., `plg_val[\"Plugin: Validate - Create - PreOp\"]`).\n"
-            "- Label every edge with the relationship type (e.g., `-->|triggers|`, `-.->|has form|`).\n"
-            "- Keep node IDs short, unique, and alphanumeric with underscores (e.g., `ent_account`, `plg_acct_val`, `wf_welcome`).\n"
-            "- Do NOT add any text, headings, or explanations outside the mermaid code fence.\n\n"
-            "IMPORTANT CONSTRAINTS:\n"
-            "- Include ONLY components that exist in the metadata. Do NOT fabricate nodes.\n"
-            "- The diagram must be syntactically valid Mermaid — no broken arrows, no unmatched quotes, no duplicate node IDs, no HTML tags inside labels.\n"
-            "- If the solution is large, focus on the main flow and add a comment `%% Simplified for readability` at the top.\n"
-            "- Wrap the ENTIRE response in a single ```mermaid ... ``` code fence."
+            "Generate detailed FLOW DIAGRAMS and STEP-BY-STEP FLOWS for each feature in this solution. "
+            "This section maps out exactly what happens when each feature is used.\n\n"
+            "First, identify the distinct features by grouping related components from the metadata. "
+            "Then for EACH feature:\n\n"
+            "### Feature: [Feature Name]\n\n"
+            "#### Flow Description\n"
+            "Write a numbered step-by-step flow showing what happens from start to finish:\n"
+            "| Step # | What Happens | Component Responsible | Data Involved |\n"
+            "Each row should describe one action in the flow. "
+            "'What Happens' should be in plain English. "
+            "'Component Responsible' must be the EXACT component name from metadata. "
+            "'Data Involved' should mention the specific tables/fields/entities touched.\n\n"
+            "#### Trigger\n"
+            "State what starts this flow (e.g., 'User runs the report from a menu item', "
+            "'Batch job executes on schedule', 'User clicks Sync button').\n\n"
+            "#### Components in this Flow\n"
+            "List all components involved in order of execution:\n"
+            "1. [Component Name] — [what it does in this flow]\n"
+            "2. [Component Name] — [what it does in this flow]\n"
+            "...\n\n"
+            "#### Mermaid Flow Diagram\n"
+            "Generate a Mermaid flowchart (`flowchart TD`) for this feature's flow.\n"
+            "- Use QUOTED labels: `nodeId[\"Label text\"]`\n"
+            "- Label every edge with what happens\n"
+            "- NEVER use `{{ }}` or `<br>` in labels\n"
+            "- Keep it simple and readable\n"
+            "- Wrap in a ```mermaid code fence\n\n"
+            "#### Input / Output\n"
+            "- **Input**: What data or user action feeds into this flow\n"
+            "- **Output**: What the user gets at the end (e.g., a report, synced data, updated records)\n\n"
+            "RULES:\n"
+            "- Base flows ONLY on component relationships visible in the metadata.\n"
+            "- If a class extends another, show the base being called first, then the extension.\n"
+            "- Use EXACT component names from metadata.\n"
+            "- Do NOT fabricate processing logic — describe flows at the component interaction level.\n"
+            "- Every component must appear in at least one feature flow."
         ),
     },
 }
@@ -631,63 +497,8 @@ def _has_real_plugin_descriptions(graph: KnowledgeGraph) -> bool:
 def _check_section_suppression(section_key: str, graph: KnowledgeGraph) -> str | None:
     """Return minimal content string if section should be suppressed, None otherwise.
 
-    Rules:
-    - 'integration': suppress if no plugin descriptions explicitly mention external systems
-      and no workflow steps explicitly mention external systems.
-    - 'security_model': suppress if no security roles in the graph.
+    With the new 4-section documentation structure, all sections are always generated.
     """
-
-    if section_key == "integration":
-        # Check for explicit external system references in plugin descriptions and workflow steps
-        external_keywords = [
-            "api", "rest", "soap", "http", "https", "endpoint", "url",
-            "external", "integration", "sync", "third-party", "webhook",
-            "azure", "service bus", "queue", "crm online", "sharepoint",
-            "mailbox", "smtp", "oauth", "authentication", "token",
-        ]
-        has_evidence = False
-
-        for pdata in graph.plugins.values():
-            if pdata.description:
-                desc_lower = pdata.description.lower()
-                if any(kw in desc_lower for kw in external_keywords):
-                    has_evidence = True
-                    break
-
-        if not has_evidence:
-            for wdata in graph.workflows.values():
-                for step in wdata.steps:
-                    step_lower = step.lower()
-                    if any(kw in step_lower for kw in external_keywords):
-                        has_evidence = True
-                        break
-                if has_evidence:
-                    break
-
-        if not has_evidence:
-            return (
-                "# Integration Documentation\n\n"
-                "## Integration Assessment\n\n"
-                "No external integration points were detected in the solution metadata.\n\n"
-                "The solution contains plugin registrations and workflow definitions that operate "
-                "within the internal Dynamics CRM platform. No plugin descriptions or workflow steps "
-                "reference external systems, APIs, endpoints, or third-party services.\n\n"
-                "**Note:** If external integrations exist, they may be implemented in plugin assembly "
-                "source code (.dll), which is not included in the solution metadata XML. "
-                "Review the plugin assemblies and source code for actual integration logic."
-            )
-
-    if section_key == "security_model":
-        if not graph.roles:
-            return (
-                "# Security Model\n\n"
-                "## Security Assessment\n\n"
-                "No security roles were detected in the solution metadata.\n\n"
-                "Security configuration may exist in the Dynamics CRM environment but is not "
-                "included in this solution package. Contact the system administrator for "
-                "details on security role assignments and privilege configurations."
-            )
-
     return None
 
 
@@ -1035,19 +846,18 @@ def _compact_graph_summary(graph: KnowledgeGraph) -> str:
     }, indent=2)
 
 
-_SECTION_SYSTEM_PROMPT = """You are a Microsoft Dynamics CRM Solution Architect and enterprise technical writer.
+_SECTION_SYSTEM_PROMPT = """You are a Microsoft Dynamics 365 Solution Architect and documentation specialist.
 
-You are generating one section of a comprehensive CRM project documentation package
-that follows the standard Dynamics CRM documentation hierarchy:
-1. Executive Summary  2. Business Requirements  3. Functional Design
-4. Technical Design   5. Data Model             6. Integration
-7. Customization      8. Security Model         9. Deployment
-10. Testing           11. Support & Operations  12. User Guide
-13. Solution Inventory 14. Environment Config   15. Change Log
-16. Solution Flow Diagram (Mermaid)
+You are generating one section of a focused, easy-to-understand documentation package
+that follows this 4-section structure:
+1. Component Overview — List every component in the solution
+2. How Everything Links Together — Explain connections in plain language for non-technical readers
+3. Feature List — Identify and describe all features with their components
+4. Feature Flows — Map out step-by-step flows for each feature with diagrams
 
 Based on the provided solution metadata and knowledge graph relationships,
-generate enterprise-grade documentation for the requested section.
+generate clear, well-structured documentation for the requested section.
+Write in a way that is accessible to non-technical readers while remaining accurate.
 
 ███████████████████████████████████████████████████████████████████████████████
 █ CRITICAL: STEP NAMES ARE NOT BUSINESS LOGIC — DO NOT ELABORATE                █

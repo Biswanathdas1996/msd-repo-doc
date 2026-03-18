@@ -23,24 +23,12 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-// All 15 CRM documentation sections
+// All 4 documentation sections
 const ALL_DOC_SECTIONS = [
-  { key: "executive_summary", label: "Executive Summary", order: 1, group: "Strategic" },
-  { key: "business_requirements", label: "Business Requirements (BRD)", order: 2, group: "Strategic" },
-  { key: "functional_design", label: "Functional Design (FDD)", order: 3, group: "Design" },
-  { key: "technical_design", label: "Technical Design (TDD)", order: 4, group: "Design" },
-  { key: "data_model", label: "Data Model", order: 5, group: "Design" },
-  { key: "integration", label: "Integration", order: 6, group: "Technical" },
-  { key: "customization", label: "Customization", order: 7, group: "Technical" },
-  { key: "security_model", label: "Security Model", order: 8, group: "Technical" },
-  { key: "deployment", label: "Deployment", order: 9, group: "Operations" },
-  { key: "testing", label: "Testing", order: 10, group: "Operations" },
-  { key: "support_operations", label: "Support & Operations", order: 11, group: "Operations" },
-  { key: "user_guide", label: "User Guide", order: 12, group: "End-User" },
-  { key: "solution_inventory", label: "Solution Inventory", order: 13, group: "Reference" },
-  { key: "environment_config", label: "Environment Config", order: 14, group: "Reference" },
-  { key: "change_log", label: "Change Log", order: 15, group: "Reference" },
-  { key: "solution_flow_diagram", label: "Solution Flow Diagram", order: 16, group: "Visual" },
+  { key: "component_overview", label: "Component Overview", order: 1, group: "Overview" },
+  { key: "component_linkage", label: "How Everything Links Together", order: 2, group: "Overview" },
+  { key: "feature_list", label: "Feature List", order: 3, group: "Features" },
+  { key: "feature_flows", label: "Feature Flows", order: 4, group: "Features" },
 ];
 
 const TABS = [
