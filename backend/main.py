@@ -673,6 +673,14 @@ def get_solution(sol_id: str):
     )
 
 
+@app.get("/solutions/{sol_id}/download/check")
+def check_download_available(sol_id: str):
+    _get_solution_or_404(sol_id)
+    zip_path = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
+    available = os.path.exists(zip_path)
+    return {"available": available, "size": os.path.getsize(zip_path) if available else 0}
+
+
 @app.get("/solutions/{sol_id}/download")
 def download_solution_zip(sol_id: str):
     data = _get_solution_or_404(sol_id)

@@ -39,26 +39,18 @@ export default function Dashboard() {
   const handleDownload = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/py-api/solutions/${id}/download`);
-      if (!res.ok) {
+      const checkRes = await fetch(`/api/py-api/solutions/${id}/download/check`);
+      const checkData = await checkRes.json();
+      if (!checkData.available) {
         toast({ title: "Download unavailable", description: "The original ZIP file is no longer available.", variant: "destructive" });
         return;
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("content-disposition");
-      let filename = `${id}.zip`;
-      if (disposition) {
-        const match = disposition.match(/filename="?([^";\n]+)"?/);
-        if (match) filename = match[1];
-      }
-      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
+      link.href = `/api/py-api/solutions/${id}/download`;
+      link.download = "";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
     } catch {
       toast({ title: "Download failed", description: "An error occurred while downloading the file.", variant: "destructive" });
     }
