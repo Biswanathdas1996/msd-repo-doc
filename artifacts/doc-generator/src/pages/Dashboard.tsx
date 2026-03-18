@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const { data: solutions, isLoading, error } = useSolutions();
+  const { data: rawSolutions, isLoading, error } = useSolutions();
+  const solutions = Array.isArray(rawSolutions) ? rawSolutions : [];
   const deleteMutation = useDelete();
   const [, setLocation] = useLocation();
 
