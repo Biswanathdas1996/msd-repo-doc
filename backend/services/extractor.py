@@ -2,12 +2,126 @@ import zipfile
 import os
 import shutil
 import uuid
+import logging
 from lxml import etree
 from datetime import datetime, timezone
+
+logger = logging.getLogger("extractor")
 
 MAX_ZIP_SIZE = 10 * 1024 * 1024 * 1024
 MAX_ENTRY_COUNT = 50000
 MAX_TOTAL_UNCOMPRESSED = 50 * 1024 * 1024 * 1024
+
+# ---------------------------------------------------------------------------
+# Post-extraction cleansing
+# ---------------------------------------------------------------------------
+
+# Junk / OS / IDE files that are never useful for processing
+JUNK_FILE_NAMES = {
+    ".ds_store", "thumbs.db", "desktop.ini", ".gitkeep", ".gitignore",
+    ".gitattributes", ".editorconfig", ".npmrc", ".yarnrc",
+    "license", "license.md", "license.txt",
+    "readme.md", "readme.txt", "readme",
+    "changelog.md", "changelog.txt",
+    ".eslintrc", ".eslintrc.json", ".eslintrc.js",
+    ".prettierrc", ".prettierrc.json",
+    ".babelrc", ".stylelintrc",
+}
+
+JUNK_DIR_NAMES = {
+    "__macosx", ".git", ".svn", ".hg", ".idea", ".vscode",
+    "node_modules", "__pycache__", ".vs", "bin", "obj",
+    ".terraform", ".tox",
+}
+
+JUNK_EXTENSIONS = {
+    ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",  # archives
+    ".exe", ".dll", ".so", ".dylib", ".pdb",                # binaries
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg",  # images
+    ".mp3", ".mp4", ".wav", ".avi", ".mov",                  # media
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",  # office docs
+    ".log", ".tmp", ".bak", ".swp",                          # temp files
+}
+
+
+def _cleanse_extracted_folder(folder: str) -> dict:
+    """Remove nested zips, junk directories, and unnecessary files after extraction.
+
+    Returns a summary dict with counts of removed items.
+    """
+    removed_zips = 0
+    removed_dirs = 0
+    removed_files = 0
+
+    # --- Pass 1: remove entire junk directories (top-down so we can prune) ---
+    for root_dir, dirs, _files in os.walk(folder, topdown=True):
+        dirs_to_remove = []
+        for d in dirs:
+            if d.lower() in JUNK_DIR_NAMES:
+                dir_path = os.path.join(root_dir, d)
+                shutil.rmtree(dir_path, ignore_errors=True)
+                removed_dirs += 1
+                dirs_to_remove.append(d)
+                logger.info("Cleanse: removed junk directory %s", dir_path)
+        # Prune so os.walk doesn't descend into removed dirs
+        for d in dirs_to_remove:
+            dirs.remove(d)
+
+    # --- Pass 2: remove junk / unnecessary files ---
+    for root_dir, _dirs, files in os.walk(folder):
+        for f in files:
+            fl = f.lower()
+            full_path = os.path.join(root_dir, f)
+            _name, ext = os.path.splitext(fl)
+
+            # 1) Nested zip / archive files at any level
+            if ext in {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"}:
+                try:
+                    os.remove(full_path)
+                    removed_zips += 1
+                    logger.info("Cleanse: removed nested archive %s", full_path)
+                except OSError:
+                    pass
+                continue
+
+            # 2) Junk files by exact name
+            if fl in JUNK_FILE_NAMES:
+                try:
+                    os.remove(full_path)
+                    removed_files += 1
+                    logger.info("Cleanse: removed junk file %s", full_path)
+                except OSError:
+                    pass
+                continue
+
+            # 3) Junk files by extension
+            if ext in JUNK_EXTENSIONS:
+                try:
+                    os.remove(full_path)
+                    removed_files += 1
+                    logger.info("Cleanse: removed unnecessary file %s", full_path)
+                except OSError:
+                    pass
+                continue
+
+    # --- Pass 3: remove empty directories left behind ---
+    for root_dir, dirs, files in os.walk(folder, topdown=False):
+        if root_dir == folder:
+            continue
+        if not os.listdir(root_dir):
+            try:
+                os.rmdir(root_dir)
+                logger.info("Cleanse: removed empty directory %s", root_dir)
+            except OSError:
+                pass
+
+    summary = {
+        "removed_zips": removed_zips,
+        "removed_dirs": removed_dirs,
+        "removed_files": removed_files,
+    }
+    logger.info("Cleanse summary: %s", summary)
+    return summary
 
 AX_CLASS_TAGS = {"axclass"}
 AX_TABLE_TAGS = {"axtable", "axtableextension"}
@@ -59,6 +173,10 @@ def extract_solution(zip_file_path: str, base_output_folder: str) -> dict:
     except ValueError:
         shutil.rmtree(output_folder, ignore_errors=True)
         raise
+
+    # --- Post-extraction cleansing ---
+    cleanse_summary = _cleanse_extracted_folder(output_folder)
+    logger.info("Post-extract cleanse for %s: %s", solution_id, cleanse_summary)
 
     structure = analyze_structure(output_folder)
 
