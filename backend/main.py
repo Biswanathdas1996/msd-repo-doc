@@ -366,12 +366,14 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
     """Run heavy extraction + parsing in a background thread so the upload
     response returns immediately after the file has been streamed to disk."""
     try:
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        saved_zip = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
+        if os.path.exists(tmp_path):
+            shutil.copy2(tmp_path, saved_zip)
+
         result = extract_solution(tmp_path, SOLUTIONS_DIR)
 
-        saved_zip = None
         if os.path.exists(tmp_path):
-            saved_zip = os.path.join(UPLOADS_DIR, f"{sol_id}.zip")
-            shutil.copy2(tmp_path, saved_zip)
             os.unlink(tmp_path)
 
         old_extractor_id = result["id"]
@@ -385,11 +387,9 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
         logger.info("Background processing complete for %s", sol_id)
     except Exception:
         logger.error("Background processing failed for %s:\n%s", sol_id, traceback.format_exc())
-        # Mark the solution as errored so the UI can show a message
         if sol_id in solutions_store:
             solutions_store[sol_id]["status"] = "error"
             _save_solution_metadata(sol_id, solutions_store[sol_id])
-        # Clean up temp file
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
