@@ -41,6 +41,11 @@ import {
   Lock,
   Unlock,
   KeyRound,
+  Maximize2,
+  X,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
 
 // ─── Mermaid rendering ───────────────────────────────────────────────────────
@@ -175,10 +180,184 @@ function downloadPng(svgContent: string, filename: string) {
   img.src = dataUrl;
 }
 
+function DiagramFullscreenViewer({ svgHtml, title, onClose }: { svgHtml: string; title?: string; onClose: () => void }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
+  const [contentSize, setContentSize] = useState({ w: 0, h: 0 });
+  const dragRef = useRef<{ dragging: boolean; startX: number; startY: number; origX: number; origY: number }>({
+    dragging: false, startX: 0, startY: 0, origX: 0, origY: 0,
+  });
+
+  useEffect(() => {
+    if (viewportRef.current) {
+      setViewportSize({ w: viewportRef.current.clientWidth, h: viewportRef.current.clientHeight });
+    }
+    if (contentRef.current) {
+      const svg = contentRef.current.querySelector("svg");
+      if (svg) setContentSize({ w: svg.clientWidth || 800, h: svg.clientHeight || 600 });
+    }
+  }, [svgHtml]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.12 : -0.12;
+    setScale(prev => Math.min(6, Math.max(0.08, prev * (1 + delta))));
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, origX: translate.x, origY: translate.y };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [translate]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current.dragging) return;
+    setTranslate({
+      x: dragRef.current.origX + (e.clientX - dragRef.current.startX),
+      y: dragRef.current.origY + (e.clientY - dragRef.current.startY),
+    });
+  }, []);
+
+  const handlePointerUp = useCallback(() => { dragRef.current.dragging = false; }, []);
+
+  const resetView = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
+  const fitToScreen = useCallback(() => {
+    if (contentSize.w > 0 && contentSize.h > 0 && viewportSize.w > 0) {
+      const fitScale = Math.min(viewportSize.w / contentSize.w, viewportSize.h / contentSize.h) * 0.92;
+      setScale(fitScale);
+      setTranslate({ x: 0, y: 0 });
+    }
+  }, [contentSize, viewportSize]);
+  const zoomIn = useCallback(() => setScale(prev => Math.min(6, prev * 1.3)), []);
+  const zoomOut = useCallback(() => setScale(prev => Math.max(0.08, prev / 1.3)), []);
+
+  const scalePercent = Math.round(scale * 100);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-[#070a12] animate-in fade-in duration-200">
+      {/* Toolbar */}
+      <div className="relative flex items-center justify-between px-5 h-14 border-b border-white/[0.06] bg-gradient-to-r from-[#0d1117]/95 via-[#101824]/95 to-[#0d1117]/95 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 border border-primary/20">
+            <Network className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <span className="text-sm font-semibold text-foreground tracking-tight">{title || "Diagram"}</span>
+            <span className="text-[10px] text-muted-foreground ml-2 hidden sm:inline">Interactive Viewer</span>
+          </div>
+        </div>
+
+        {/* Zoom controls */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.06] rounded-full px-1 py-0.5">
+          <button onClick={zoomOut} className="p-1.5 rounded-full hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={resetView} className="px-2 py-1 rounded-full hover:bg-white/[0.08] transition-colors group min-w-[52px]" title="Reset to 100%">
+            <span className="text-[11px] font-medium tabular-nums text-muted-foreground group-hover:text-foreground transition-colors">{scalePercent}%</span>
+          </button>
+          <button onClick={zoomIn} className="p-1.5 rounded-full hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors" title="Zoom in">
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px h-4 bg-white/[0.08] mx-0.5" />
+          <button onClick={fitToScreen} className="px-2 py-1 rounded-full hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors text-[11px] font-medium" title="Fit to screen">
+            Fit
+          </button>
+          <button onClick={resetView} className="p-1.5 rounded-full hover:bg-white/[0.08] text-muted-foreground hover:text-foreground transition-colors" title="Reset view">
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Right: download + close */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadSvg(svgHtml, "diagram")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 transition-all text-xs font-medium"
+            title="Download SVG"
+          >
+            <Download className="w-3.5 h-3.5" /> SVG
+          </button>
+          <button
+            onClick={() => downloadPng(svgHtml, "diagram")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 transition-all text-xs font-medium"
+            title="Download PNG"
+          >
+            <Image className="w-3.5 h-3.5" /> PNG
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-muted-foreground hover:text-red-400 transition-all text-xs font-medium" title="Close (Esc)">
+            <X className="w-4 h-4" />
+            <span className="hidden sm:inline">Close</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div
+        ref={viewportRef}
+        className="relative flex-1 overflow-hidden cursor-grab active:cursor-grabbing select-none"
+        style={{ background: "radial-gradient(circle at 50% 50%, #0d1420 0%, #070a12 100%)" }}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <div className="absolute inset-0 opacity-[0.035]" style={{
+          backgroundImage: "radial-gradient(circle, #94a3b8 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }} />
+        <div
+          ref={contentRef}
+          className="w-full h-full flex items-center justify-center"
+          style={{
+            transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+            transformOrigin: "center center",
+            transition: dragRef.current.dragging ? "none" : "transform 0.18s cubic-bezier(.22,1,.36,1)",
+          }}
+        >
+          <div
+            className="[&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
+            dangerouslySetInnerHTML={{ __html: svgHtml }}
+          />
+        </div>
+      </div>
+
+      {/* Footer hints */}
+      <div className="flex items-center justify-center gap-6 px-5 h-9 border-t border-white/[0.04] bg-[#0a0e17]/80">
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+          Scroll to zoom
+        </span>
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0 0v2.5m0-2.5h2.5M7 14H4.5m4-5.5l-.757-.757A2 2 0 006.172 7H4a1 1 0 00-1 1v1.172a2 2 0 00.586 1.414l8.828 8.828a2 2 0 002.828 0l2.172-2.172a2 2 0 000-2.828L8.586 5.586A2 2 0 007.172 5H7v3.5z" /></svg>
+          Drag to pan
+        </span>
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <kbd className="px-1 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-[10px] font-mono leading-none">Esc</kbd>
+          Close
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const MermaidDiagram = memo(({ chart, id }: { chart: string; id: string }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,29 +382,45 @@ const MermaidDiagram = memo(({ chart, id }: { chart: string; id: string }) => {
   }
 
   return svg ? (
-    <div className="relative group">
-      <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        <button
-          onClick={() => downloadSvg(svg, id)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/90 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors backdrop-blur-sm shadow-sm"
-          title="Download SVG"
-        >
-          <Download className="w-3.5 h-3.5" /> SVG
-        </button>
-        <button
-          onClick={() => downloadPng(svg, id)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/90 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors backdrop-blur-sm shadow-sm"
-          title="Download PNG"
-        >
-          <Image className="w-3.5 h-3.5" /> PNG
-        </button>
+    <>
+      <div className="relative group">
+        <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <button
+            onClick={() => setFullscreen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/90 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors backdrop-blur-sm shadow-sm"
+            title="Open fullscreen"
+          >
+            <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
+          </button>
+          <button
+            onClick={() => downloadSvg(svg, id)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/90 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors backdrop-blur-sm shadow-sm"
+            title="Download SVG"
+          >
+            <Download className="w-3.5 h-3.5" /> SVG
+          </button>
+          <button
+            onClick={() => downloadPng(svg, id)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/90 border border-border/50 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors backdrop-blur-sm shadow-sm"
+            title="Download PNG"
+          >
+            <Image className="w-3.5 h-3.5" /> PNG
+          </button>
+        </div>
+        <div
+          ref={ref}
+          className="overflow-auto bg-card/50 rounded-xl p-4 border border-border/50"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
       </div>
-      <div
-        ref={ref}
-        className="overflow-auto bg-card/50 rounded-xl p-4 border border-border/50"
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-    </div>
+      {fullscreen && (
+        <DiagramFullscreenViewer
+          svgHtml={svg}
+          title={id.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
+    </>
   ) : (
     <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
       <Loader2 className="w-4 h-4 animate-spin" /> Rendering diagram...

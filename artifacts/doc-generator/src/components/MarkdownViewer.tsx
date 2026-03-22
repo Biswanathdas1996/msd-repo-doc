@@ -379,11 +379,17 @@ function FullscreenDiagramViewer({
  */
 function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const uniqueId = useId().replace(/:/g, '_');
   const [error, setError] = useState<string | null>(null);
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ dragging: boolean; startX: number; startY: number; origX: number; origY: number }>({
+    dragging: false, startX: 0, startY: 0, origX: 0, origY: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -404,9 +410,6 @@ function MermaidBlock({ code }: { code: string }) {
         }
         if (!cancelled) {
           setSvgHtml(svg);
-          if (containerRef.current) {
-            containerRef.current.innerHTML = svg;
-          }
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -421,8 +424,47 @@ function MermaidBlock({ code }: { code: string }) {
     return () => { cancelled = true; };
   }, [code, uniqueId]);
 
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    setScale(prev => Math.min(5, Math.max(0.1, prev * (1 + delta))));
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, origX: translate.x, origY: translate.y };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [translate]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current.dragging) return;
+    setTranslate({
+      x: dragRef.current.origX + (e.clientX - dragRef.current.startX),
+      y: dragRef.current.origY + (e.clientY - dragRef.current.startY),
+    });
+  }, []);
+
+  const handlePointerUp = useCallback(() => { dragRef.current.dragging = false; }, []);
+
+  const resetView = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
+
+  const fitToContainer = useCallback(() => {
+    if (!canvasRef.current) return;
+    const svgEl = canvasRef.current.querySelector('svg');
+    if (!svgEl || !containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const svgW = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 800;
+    const svgH = svgEl.viewBox?.baseVal?.height || svgEl.clientHeight || 600;
+    const fitScale = Math.min(containerRect.width / svgW, containerRect.height / svgH) * 0.9;
+    setScale(fitScale);
+    setTranslate({ x: 0, y: 0 });
+  }, []);
+
   const openFullscreen = useCallback(() => setFullscreen(true), []);
   const closeFullscreen = useCallback(() => setFullscreen(false), []);
+
+  const scalePercent = Math.round(scale * 100);
 
   if (error) {
     return (
@@ -455,32 +497,70 @@ function MermaidBlock({ code }: { code: string }) {
                 <span className="text-[10px] text-blue-400/60 ml-2">Interactive Diagram</span>
               </div>
             </div>
-            {svgHtml && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
-                  title="Save diagram as PNG"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                  PNG
-                </button>
-                <button
-                  onClick={openFullscreen}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
-                  title="Open fullscreen viewer"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
-                  </svg>
-                  Expand
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Zoom controls */}
+              {svgHtml && (
+                <div className="flex items-center gap-0.5 bg-blue-500/5 border border-blue-500/15 rounded-lg px-1 py-0.5">
+                  <button
+                    onClick={() => setScale(prev => Math.max(0.1, prev / 1.3))}
+                    className="p-1 rounded hover:bg-blue-500/10 text-blue-400/60 hover:text-blue-300 transition-colors"
+                    title="Zoom out"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" d="M18 12H6" /></svg>
+                  </button>
+                  <button onClick={resetView} className="px-1.5 py-0.5 rounded hover:bg-blue-500/10 text-[11px] font-medium tabular-nums text-blue-400/60 hover:text-blue-300 transition-colors min-w-[40px] text-center" title="Reset zoom">
+                    {scalePercent}%
+                  </button>
+                  <button
+                    onClick={() => setScale(prev => Math.min(5, prev * 1.3))}
+                    className="p-1 rounded hover:bg-blue-500/10 text-blue-400/60 hover:text-blue-300 transition-colors"
+                    title="Zoom in"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" d="M12 6v12m6-6H6" /></svg>
+                  </button>
+                  <div className="w-px h-4 bg-blue-500/15 mx-0.5" />
+                  <button onClick={fitToContainer} className="px-1.5 py-0.5 rounded hover:bg-blue-500/10 text-[11px] font-medium text-blue-400/60 hover:text-blue-300 transition-colors" title="Fit to view">
+                    Fit
+                  </button>
+                </div>
+              )}
+              {svgHtml && (
+                <>
+                  <button
+                    onClick={() => saveSvgAsPng(svgHtml, 'solution-diagram.png')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                    title="Save diagram as PNG"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                    PNG
+                  </button>
+                  <button
+                    onClick={openFullscreen}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20 hover:border-blue-400/30 transition-all text-xs font-medium"
+                    title="Open fullscreen viewer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                    </svg>
+                    Expand
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="relative min-h-[300px]"
-            style={{ background: 'radial-gradient(ellipse at 50% 50%, rgba(30, 58, 95, 0.15) 0%, transparent 70%)' }}
+          {/* Zoomable/draggable canvas */}
+          <div
+            ref={containerRef}
+            className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
+            style={{
+              minHeight: 300,
+              background: 'radial-gradient(ellipse at 50% 50%, rgba(30, 58, 95, 0.15) 0%, transparent 70%)',
+            }}
+            onWheel={handleWheel}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
           >
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center z-10">
@@ -491,21 +571,36 @@ function MermaidBlock({ code }: { code: string }) {
               </div>
             )}
             <div
-              ref={containerRef}
-              className={`mermaid-container flex justify-center overflow-auto p-8 transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
+              ref={canvasRef}
+              className={`mermaid-container flex justify-center p-8 transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
+              style={{
+                transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+                transformOrigin: 'center center',
+                transition: dragRef.current.dragging ? 'none' : 'transform 0.15s ease-out',
+              }}
+              dangerouslySetInnerHTML={svgHtml ? { __html: svgHtml } : undefined}
             />
           </div>
 
+          {/* Footer hints */}
           {svgHtml && (
-            <div className="flex items-center justify-center py-2.5 border-t border-blue-500/10 bg-blue-950/20">
+            <div className="flex items-center justify-center gap-6 py-2 border-t border-blue-500/10 bg-blue-950/20">
+              <span className="flex items-center gap-1.5 text-[10px] text-blue-400/40">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+                Scroll to zoom
+              </span>
+              <span className="flex items-center gap-1.5 text-[10px] text-blue-400/40">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0 0v2.5m0-2.5h2.5M7 14H4.5m4-5.5l-.757-.757A2 2 0 006.172 7H4a1 1 0 00-1 1v1.172a2 2 0 00.586 1.414l8.828 8.828a2 2 0 002.828 0l2.172-2.172a2 2 0 000-2.828L8.586 5.586A2 2 0 007.172 5H7v3.5z" /></svg>
+                Drag to pan
+              </span>
               <button
                 onClick={openFullscreen}
-                className="flex items-center gap-2 text-[11px] text-blue-400/50 hover:text-blue-300 transition-colors"
+                className="flex items-center gap-1.5 text-[10px] text-blue-400/40 hover:text-blue-300 transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9m11.25-5.25v4.5m0-4.5h-4.5m4.5 0L15 9m-11.25 11.25v-4.5m0 4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
                 </svg>
-                Click to expand fullscreen with zoom and pan
+                Expand fullscreen
               </button>
             </div>
           )}
