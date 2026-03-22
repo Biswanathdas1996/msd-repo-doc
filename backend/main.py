@@ -7,16 +7,24 @@ import asyncio
 import hashlib
 import logging
 import time
+import threading
 import traceback
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Configure logging early so all loggers (including claude_analyzer) output to console
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import ClientDisconnect
 
@@ -44,6 +52,7 @@ from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
 from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS, enrich_knowledge_graph_with_llm
 from backend.services.doc_exporter import export_to_docx, export_to_pdf
+from backend.services.claude_analyzer import run_advanced_analysis
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -956,6 +965,331 @@ def download_docs(sol_id: str, fmt: str):
         )
     else:
         raise HTTPException(status_code=400, detail="Unsupported format. Use 'docx' or 'pdf'.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADVANCED DOCS — Claude Code CLI powered analysis (completely separate feature)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ADVANCED_DOCS_DIR = os.path.join(DATA_DIR, "advanced_docs")
+ADVANCED_DOCS_METADATA_DIR = os.path.join(DATA_DIR, "advanced_docs_metadata")
+os.makedirs(ADVANCED_DOCS_DIR, exist_ok=True)
+os.makedirs(ADVANCED_DOCS_METADATA_DIR, exist_ok=True)
+
+advanced_docs_store: dict[str, dict] = {}
+
+
+# ── SSE event store (thread-safe) ─────────────────────────────────────────────
+
+class _SSEStore:
+    """Thread-safe event buffer shared between the background worker and the
+    async SSE endpoint."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.events: list[dict] = []
+        self.done = False
+
+    def push(self, event_type: str, data: dict):
+        with self._lock:
+            self.events.append({"event": event_type, "data": data})
+
+    def finish(self):
+        with self._lock:
+            self.done = True
+
+    def read_from(self, cursor: int) -> tuple[list[dict], bool]:
+        with self._lock:
+            return self.events[cursor:], self.done
+
+
+_sse_stores: dict[str, _SSEStore] = {}
+_SSE_STORE_TTL = 600  # clean up stores 10 min after done
+
+
+def _cleanup_old_sse_stores():
+    stale = [k for k, v in _sse_stores.items() if v.done]
+    for k in stale[:max(0, len(stale) - 5)]:
+        _sse_stores.pop(k, None)
+
+
+# ── Persistence helpers ───────────────────────────────────────────────────────
+
+def _load_advanced_docs():
+    if not os.path.exists(ADVANCED_DOCS_METADATA_DIR):
+        return
+    for fname in os.listdir(ADVANCED_DOCS_METADATA_DIR):
+        if fname.endswith(".json"):
+            try:
+                with open(os.path.join(ADVANCED_DOCS_METADATA_DIR, fname)) as f:
+                    data = json.load(f)
+                    advanced_docs_store[data["id"]] = data
+            except Exception:
+                pass
+
+_load_advanced_docs()
+
+
+def _save_advanced_doc(doc_id: str, data: dict):
+    os.makedirs(ADVANCED_DOCS_METADATA_DIR, exist_ok=True)
+    with open(os.path.join(ADVANCED_DOCS_METADATA_DIR, f"{doc_id}.json"), "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+
+# ── Background worker ─────────────────────────────────────────────────────────
+
+def _background_advanced_analysis(zip_path: str, project_name: str, doc_id: str):
+    """Run Claude CLI analysis in background thread, emitting SSE events."""
+
+    store = _sse_stores.get(doc_id)
+
+    def _on_progress(partial: dict):
+        partial["id"] = doc_id
+        advanced_docs_store[doc_id] = partial
+        _save_advanced_doc(doc_id, partial)
+
+    def _on_event(event_type: str, data: dict):
+        if store:
+            store.push(event_type, data)
+
+    try:
+        _on_event("connected", {"id": doc_id, "name": project_name})
+
+        result = run_advanced_analysis(
+            zip_path, project_name, ADVANCED_DOCS_DIR,
+            on_progress=_on_progress,
+            on_event=_on_event,
+        )
+        result["id"] = doc_id
+        advanced_docs_store[doc_id] = result
+        _save_advanced_doc(doc_id, result)
+        logger.info("Advanced analysis complete for %s (status=%s)", doc_id, result.get("status"))
+    except Exception:
+        logger.error("Advanced analysis failed for %s:\n%s", doc_id, traceback.format_exc())
+        if doc_id in advanced_docs_store:
+            advanced_docs_store[doc_id]["status"] = "error"
+            advanced_docs_store[doc_id]["error"] = traceback.format_exc()
+            _save_advanced_doc(doc_id, advanced_docs_store[doc_id])
+        _on_event("done", {"id": doc_id, "status": "error", "error": "Internal error"})
+    finally:
+        if store:
+            store.finish()
+        if os.path.exists(zip_path):
+            try:
+                os.unlink(zip_path)
+            except OSError:
+                pass
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.post("/advanced-docs/upload")
+async def advanced_docs_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    name: str = Form(default=""),
+):
+    """Upload a ZIP file for advanced Claude-powered analysis."""
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a ZIP file")
+
+    MAX_SIZE = 500 * 1024 * 1024
+    CHUNK = 32 * 1024 * 1024
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            tmp_path = tmp.name
+            total = 0
+            while True:
+                try:
+                    chunk = await file.read(CHUNK)
+                except ClientDisconnect:
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    raise HTTPException(status_code=499, detail="Client disconnected")
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_SIZE:
+                    tmp.close()
+                    os.unlink(tmp_path)
+                    raise HTTPException(status_code=400, detail="File too large. Max 500 MB for advanced analysis.")
+                tmp.write(chunk)
+                await asyncio.sleep(0)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+
+    project_name = name or file.filename or "Unnamed Project"
+    doc_id = hashlib.md5(f"adv-{project_name}-{time.time()}".encode()).hexdigest()[:10]
+
+    placeholder = {
+        "id": doc_id,
+        "name": project_name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": "processing",
+        "file_count": 0,
+        "files": [],
+        "project_tree": "",
+        "knowledge_graph": {},
+        "features": {},
+        "feature_connections": {},
+        "flow_diagrams": {},
+        "documentation": "",
+        "step_errors": {},
+        "completed_steps": [],
+        "current_step": "",
+    }
+    advanced_docs_store[doc_id] = placeholder
+    _save_advanced_doc(doc_id, placeholder)
+
+    _cleanup_old_sse_stores()
+    _sse_stores[doc_id] = _SSEStore()
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, _background_advanced_analysis, tmp_path, project_name, doc_id)
+
+    return {"id": doc_id, "name": project_name, "status": "processing"}
+
+
+@app.post("/advanced-docs-import")
+async def import_advanced_doc(request: Request):
+    """Import a previously exported advanced documentation report JSON."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not isinstance(data, dict) or "name" not in data:
+        raise HTTPException(status_code=400, detail="Invalid report format — missing 'name' field")
+
+    doc_id = hashlib.md5(f"import-{data.get('name','')}-{time.time()}".encode()).hexdigest()[:10]
+
+    data["id"] = doc_id
+    data["created_at"] = datetime.now(timezone.utc).isoformat()
+    data.pop("output_folder", None)
+    data.setdefault("status", data.get("status", "ready"))
+    data.setdefault("file_count", data.get("file_count", 0))
+    data.setdefault("files", data.get("files", []))
+    data.setdefault("project_tree", data.get("project_tree", ""))
+    data.setdefault("knowledge_graph", data.get("knowledge_graph", {}))
+    data.setdefault("features", data.get("features", {}))
+    data.setdefault("feature_connections", data.get("feature_connections", {}))
+    data.setdefault("flow_diagrams", data.get("flow_diagrams", {}))
+    data.setdefault("documentation", data.get("documentation", ""))
+
+    advanced_docs_store[doc_id] = data
+    _save_advanced_doc(doc_id, data)
+
+    return {"id": doc_id, "name": data["name"], "status": data["status"]}
+
+
+@app.get("/advanced-docs/{doc_id}/stream")
+async def stream_advanced_doc(doc_id: str):
+    """SSE endpoint — streams real-time step events for a processing doc."""
+    if doc_id not in advanced_docs_store:
+        raise HTTPException(status_code=404, detail="Advanced doc project not found")
+
+    store = _sse_stores.get(doc_id)
+
+    async def _generate():
+        # If there's no SSE store (already finished before client connected),
+        # replay the final state from the stored result as synthetic events.
+        if store is None:
+            data = advanced_docs_store.get(doc_id, {})
+            yield f"event: connected\ndata: {json.dumps({'id': doc_id, 'name': data.get('name', '')}, default=str)}\n\n"
+            for step_key in ["extraction", "knowledge_graph", "features",
+                             "cross_validation", "feature_connections",
+                             "flow_diagrams", "documentation", "quality_check"]:
+                step_errors = data.get("step_errors", {})
+                completed = data.get("completed_steps", [])
+                if step_key in completed:
+                    yield f"event: step_complete\ndata: {json.dumps({'step': step_key, 'summary': 'completed'}, default=str)}\n\n"
+                elif step_key in step_errors:
+                    yield f"event: step_error\ndata: {json.dumps({'step': step_key, 'error': step_errors[step_key]}, default=str)}\n\n"
+            yield f"event: done\ndata: {json.dumps({'id': doc_id, 'status': data.get('status', 'ready')}, default=str)}\n\n"
+            return
+
+        cursor = 0
+        while True:
+            new_events, done = store.read_from(cursor)
+            for ev in new_events:
+                payload = json.dumps(ev["data"], default=str)
+                yield f"event: {ev['event']}\ndata: {payload}\n\n"
+                cursor += 1
+            if done and not new_events:
+                break
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/advanced-docs")
+def list_advanced_docs():
+    """List all advanced documentation projects."""
+    return [
+        {
+            "id": d["id"],
+            "name": d["name"],
+            "created_at": d.get("created_at", ""),
+            "status": d.get("status", "processing"),
+            "file_count": d.get("file_count", 0),
+        }
+        for d in advanced_docs_store.values()
+    ]
+
+
+@app.get("/advanced-docs/{doc_id}")
+def get_advanced_doc(doc_id: str):
+    """Get full advanced documentation result."""
+    if doc_id not in advanced_docs_store:
+        raise HTTPException(status_code=404, detail="Advanced doc project not found")
+    return advanced_docs_store[doc_id]
+
+
+@app.get("/advanced-docs/{doc_id}/status")
+def get_advanced_doc_status(doc_id: str):
+    """Get processing status of an advanced doc project."""
+    if doc_id not in advanced_docs_store:
+        raise HTTPException(status_code=404, detail="Advanced doc project not found")
+    d = advanced_docs_store[doc_id]
+    return {
+        "id": d["id"],
+        "status": d.get("status", "processing"),
+        "error": d.get("error"),
+    }
+
+
+@app.delete("/advanced-docs/{doc_id}")
+def delete_advanced_doc(doc_id: str):
+    """Delete an advanced documentation project."""
+    if doc_id not in advanced_docs_store:
+        raise HTTPException(status_code=404, detail="Advanced doc project not found")
+
+    data = advanced_docs_store[doc_id]
+    output_folder = data.get("output_folder")
+    if output_folder and os.path.exists(output_folder):
+        shutil.rmtree(output_folder, ignore_errors=True)
+
+    meta_file = os.path.join(ADVANCED_DOCS_METADATA_DIR, f"{doc_id}.json")
+    if os.path.exists(meta_file):
+        os.unlink(meta_file)
+
+    _sse_stores.pop(doc_id, None)
+    del advanced_docs_store[doc_id]
+    return {"message": f"Advanced doc {doc_id} deleted"}
 
 
 if __name__ == "__main__":

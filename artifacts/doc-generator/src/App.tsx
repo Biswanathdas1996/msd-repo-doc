@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
 import SolutionDetail from "@/pages/SolutionDetail";
+import AdvancedDocs from "@/pages/AdvancedDocs";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/solutions/:id" component={SolutionDetail} />
+      <Route path="/advanced-docs" component={AdvancedDocs} />
       <Route component={NotFound} />
     </Switch>
   );

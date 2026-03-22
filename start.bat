@@ -62,23 +62,19 @@ if exist "%ROOT%\.env" (
 :: Launch each service in its own cmd window
 :: ══════════════════════════════════════════════
 
-echo [1/3] Starting Backend - FastAPI (port 5001)...
-start "Backend - FastAPI" cmd /k "cd /d %ROOT% && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5001 --reload --timeout-keep-alive 300 --h11-max-incomplete-event-size 0 || (echo. & echo [ERROR] Backend failed - see above & pause)"
+echo [1/2] Starting Backend - FastAPI (port 5001)...
+start "Backend - FastAPI" cmd /k "cd /d %ROOT% && python -m uvicorn backend.main:app --host 127.0.0.1 --port 5001 --reload --timeout-keep-alive 300 --h11-max-incomplete-event-size 0 || (echo. & echo [ERROR] Backend failed - see above & pause)"
 
 timeout /t 3 /nobreak >nul
 
-echo [2/3] Starting Frontend - Vite doc-generator...
+echo [2/2] Starting Frontend - Vite doc-generator...
 start "Frontend - Vite" cmd /k "cd /d %ROOT%\artifacts\doc-generator && pnpm dev || (echo. & echo [ERROR] Frontend failed - see above & pause)"
-
-echo [3/3] Starting API Server - Express...
-start "API Server - Express" cmd /k "cd /d %ROOT%\artifacts\api-server && set NODE_ENV=development && set PORT=3000 && pnpm exec tsx ./src/index.ts || (echo. & echo [ERROR] API Server failed - see above & pause)"
 
 echo.
 echo ============================================
 echo  All services launched in separate windows.
 echo  Backend  : http://localhost:5001
 echo  Frontend : http://localhost:5173
-echo  API Srv  : http://localhost:3000
 echo ============================================
 echo.
 echo You can close this window.

@@ -1,12 +1,13 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Settings,
   Database,
   Cpu,
   FileText,
-  Boxes
+  Boxes,
+  Sparkles,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -18,8 +19,7 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    // Only show these if we are inside a solution context (simplified for this layout)
-    // Real app might have dynamic sidebar based on route params
+    { href: "/advanced-docs", label: "Advanced Docs", icon: Sparkles },
   ];
 
   return (

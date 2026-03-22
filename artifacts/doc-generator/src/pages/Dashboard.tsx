@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useSolutions, useDelete } from "@/hooks/use-solutions";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +16,10 @@ import {
   Loader2,
   AlertCircle,
   FileSearch,
-  Download
+  Download,
+  Lock,
+  Unlock,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +29,32 @@ export default function Dashboard() {
   const solutions = Array.isArray(rawSolutions) ? rawSolutions : [];
   const deleteMutation = useDelete();
   const [, setLocation] = useLocation();
+
+  const [unlocked, setUnlocked] = useState(false);
+  const [showPassGate, setShowPassGate] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [passError, setPassError] = useState(false);
+  const UPLOAD_PASS = "admin123";
+
+  const handleUnlock = useCallback(() => {
+    if (passInput === UPLOAD_PASS) {
+      setUnlocked(true);
+      setPassError(false);
+      setPassInput("");
+      setShowPassGate(false);
+      setIsUploadOpen(true);
+    } else {
+      setPassError(true);
+    }
+  }, [passInput]);
+
+  const handleNewSolution = useCallback(() => {
+    if (unlocked) {
+      setIsUploadOpen(true);
+    } else {
+      setShowPassGate(true);
+    }
+  }, [unlocked]);
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -67,10 +96,10 @@ export default function Dashboard() {
           </p>
         </div>
         <Button 
-          onClick={() => setIsUploadOpen(true)}
+          onClick={handleNewSolution}
           className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-6 py-6 h-auto shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
         >
-          <Plus className="w-5 h-5 mr-2" />
+          {unlocked ? <Plus className="w-5 h-5 mr-2" /> : <Lock className="w-5 h-5 mr-2" />}
           <span className="font-semibold text-base">New Solution</span>
         </Button>
       </div>
@@ -98,10 +127,11 @@ export default function Dashboard() {
             Get started by uploading a Dynamics Solution .zip file. The AI will parse it and build a knowledge graph automatically.
           </p>
           <Button 
-            onClick={() => setIsUploadOpen(true)}
+            onClick={handleNewSolution}
             variant="outline"
             className="mt-8 rounded-xl border-primary/20 text-primary hover:bg-primary/10"
           >
+            {unlocked ? <Plus className="w-4 h-4 mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
             Upload your first solution
           </Button>
         </div>
@@ -189,6 +219,44 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Password gate modal */}
+      {showPassGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowPassGate(false); setPassInput(""); setPassError(false); }} />
+          <div className="relative bg-card border border-border rounded-2xl p-8 w-full max-w-sm shadow-2xl flex flex-col items-center gap-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+              <KeyRound className="w-7 h-7 text-amber-400" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-foreground">Protected Action</h3>
+              <p className="text-sm text-muted-foreground mt-1">Enter the password to unlock uploads</p>
+            </div>
+            <div className="flex items-center gap-2 w-full">
+              <input
+                type="password"
+                autoFocus
+                value={passInput}
+                onChange={(e) => { setPassInput(e.target.value); setPassError(false); }}
+                onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+                placeholder="Enter password"
+                className={`flex-1 px-3 py-2.5 rounded-lg bg-background border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 ${passError ? "border-red-500 ring-2 ring-red-500/30" : "border-border"}`}
+              />
+              <button
+                onClick={handleUnlock}
+                className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium text-sm hover:opacity-90 transition-opacity flex items-center gap-1.5"
+              >
+                <Unlock className="w-4 h-4" /> Unlock
+              </button>
+            </div>
+            {passError && (
+              <p className="text-xs text-red-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Incorrect password
+              </p>
+            )}
+          </div>
         </div>
       )}
 
