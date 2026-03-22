@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [showPassGate, setShowPassGate] = useState(false);
   const [passInput, setPassInput] = useState("");
   const [passError, setPassError] = useState(false);
-  const UPLOAD_PASS = "admin123";
+  const UPLOAD_PASS = "Papun@1996";
 
   const handleUnlock = useCallback(() => {
     if (passInput === UPLOAD_PASS) {

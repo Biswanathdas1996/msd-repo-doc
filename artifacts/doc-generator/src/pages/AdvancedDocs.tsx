@@ -1022,7 +1022,7 @@ export default function AdvancedDocs() {
   const [unlocked, setUnlocked] = useState(false);
   const [passInput, setPassInput] = useState("");
   const [passError, setPassError] = useState(false);
-  const UPLOAD_PASS = "admin123";
+  const UPLOAD_PASS = "Papun@1996";
 
   const handleUnlock = useCallback(() => {
     if (passInput === UPLOAD_PASS) {
