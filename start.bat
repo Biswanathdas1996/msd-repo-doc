@@ -75,6 +75,8 @@ echo ============================================
 echo  All services launched in separate windows.
 echo  Backend  : http://localhost:5001
 echo  Frontend : http://localhost:5173
+echo  Public   : run tunnel.bat ^(Cloudflare quick tunnel^)
+echo  Stop     : run stop.bat ^(or close the service windows^)
 echo ============================================
 echo.
 echo You can close this window.
