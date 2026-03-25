@@ -259,18 +259,55 @@ export function useAdvancedDocUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, name }: { file: File; name: string }) => {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("name", name);
-      const res = await fetch(`${API_BASE}/advanced-docs/upload`, {
+      const CHUNK_SIZE = 5 * 1024 * 1024;
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+      const initRes = await fetch(`${API_BASE}/advanced-docs/upload/init`, {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          totalSize: file.size,
+          totalChunks,
+          name,
+        }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || res.statusText);
+      if (!initRes.ok) {
+        const text = await initRes.text();
+        throw new Error(text || "Upload init failed");
       }
-      return res.json() as Promise<{
+      const { uploadId } = (await initRes.json()) as { uploadId: string };
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const blob = file.slice(start, end);
+
+        const form = new FormData();
+        form.append("file", blob, file.name);
+        form.append("uploadId", uploadId);
+        form.append("chunkIndex", String(i));
+
+        const chunkRes = await fetch(`${API_BASE}/advanced-docs/upload/chunk`, {
+          method: "POST",
+          body: form,
+        });
+        if (!chunkRes.ok) {
+          const text = await chunkRes.text();
+          throw new Error(text || `Chunk ${i} upload failed`);
+        }
+      }
+
+      const finalRes = await fetch(`${API_BASE}/advanced-docs/upload/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId, name }),
+      });
+      if (!finalRes.ok) {
+        const text = await finalRes.text();
+        throw new Error(text || "Upload finalize failed");
+      }
+      return finalRes.json() as Promise<{
         id: string;
         name: string;
         status: string;

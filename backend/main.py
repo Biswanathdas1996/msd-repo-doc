@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# Configure logging early so all loggers (including claude_analyzer) output to console
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+logging.getLogger("python_multipart").setLevel(logging.WARNING)
 
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -1083,60 +1083,120 @@ def _background_advanced_analysis(zip_path: str, project_name: str, doc_id: str)
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@app.post("/advanced-docs/upload")
-async def advanced_docs_upload(request: Request):
-    """Upload a ZIP file for advanced Claude-powered analysis."""
-    MAX_SIZE = 500 * 1024 * 1024
-    CHUNK = 32 * 1024 * 1024
+@app.post("/advanced-docs/upload/init")
+async def advanced_docs_upload_init(request: Request):
+    """Initialize chunked upload for advanced Claude-powered analysis."""
+    body = await request.json()
+    filename = body.get("filename", "")
+    total_size = body.get("totalSize", 0)
+    total_chunks = body.get("totalChunks", 0)
+    name = body.get("name", "")
 
-    content_type = request.headers.get("content-type", "")
-    if "multipart/form-data" not in content_type:
-        raise HTTPException(status_code=400, detail="Expected multipart/form-data")
+    if not filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    tmp_path = None
-    filename = ""
-    form_name = ""
+    MAX_UPLOAD_SIZE = 500 * 1024 * 1024
+    if total_size > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Max 500 MB for advanced analysis.")
+
+    _cleanup_stale_chunked_uploads()
+
+    upload_id = hashlib.md5(f"adv-{filename}-{time.time()}-{os.urandom(8).hex()}".encode()).hexdigest()[:16]
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    tmp.close()
+
+    chunk_size = 5 * 1024 * 1024
+    _chunked_uploads[upload_id] = {
+        "tmp_path": tmp.name,
+        "filename": filename,
+        "name": name,
+        "total_size": total_size,
+        "total_chunks": total_chunks,
+        "chunk_size": chunk_size,
+        "received_chunks": 0,
+        "received_set": set(),
+        "bytes_written": 0,
+        "last_activity": time.time(),
+        "type": "advanced",
+    }
+
+    return {"uploadId": upload_id}
+
+
+@app.post("/advanced-docs/upload/chunk")
+async def advanced_docs_upload_chunk(
+    request: Request,
+    file: UploadFile = File(...),
+    uploadId: str = Form(...),
+    chunkIndex: int = Form(...),
+):
+    """Receive a single chunk for advanced docs upload."""
+    info = _chunked_uploads.get(uploadId)
+    if not info or info.get("type") != "advanced":
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+
+    if chunkIndex < 0 or chunkIndex >= info["total_chunks"]:
+        raise HTTPException(status_code=400, detail=f"Invalid chunk index {chunkIndex}")
+
+    info["last_activity"] = time.time()
 
     try:
-        form = await request.form()
-        upload_file = form.get("file")
-        form_name = form.get("name", "") or ""
+        chunk_data = await file.read()
+    except ClientDisconnect:
+        raise HTTPException(status_code=499, detail="Client disconnected")
 
-        if not upload_file or not hasattr(upload_file, "filename"):
-            raise HTTPException(status_code=400, detail="No file uploaded")
+    chunk_size = info.get("chunk_size", 5 * 1024 * 1024)
+    offset = chunkIndex * chunk_size
+    with open(info["tmp_path"], "r+b" if os.path.getsize(info["tmp_path"]) > 0 else "wb") as f:
+        f.seek(offset)
+        f.write(chunk_data)
 
-        filename = upload_file.filename or ""
-        if not filename.lower().endswith(".zip"):
-            raise HTTPException(status_code=400, detail="Please upload a ZIP file")
+    received = info.setdefault("received_set", set())
+    if chunkIndex not in received:
+        received.add(chunkIndex)
+        info["received_chunks"] = len(received)
 
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-            tmp_path = tmp.name
-            total = 0
-            while True:
-                try:
-                    chunk = await upload_file.read(CHUNK)
-                except Exception:
-                    if tmp_path and os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
-                    raise HTTPException(status_code=499, detail="Client disconnected or read error")
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > MAX_SIZE:
-                    tmp.close()
-                    os.unlink(tmp_path)
-                    raise HTTPException(status_code=400, detail="File too large. Max 500 MB for advanced analysis.")
-                tmp.write(chunk)
-                await asyncio.sleep(0)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Advanced docs upload failed: %s", exc, exc_info=True)
-        if tmp_path and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+    return {
+        "chunkIndex": chunkIndex,
+        "receivedChunks": info["received_chunks"],
+        "totalChunks": info["total_chunks"],
+    }
 
-    project_name = form_name or filename or "Unnamed Project"
+
+@app.post("/advanced-docs/upload/finalize")
+async def advanced_docs_upload_finalize(request: Request):
+    """Finalize chunked upload and start advanced analysis."""
+    body = await request.json()
+    upload_id = body.get("uploadId", "")
+    name_override = body.get("name", "")
+
+    info = _chunked_uploads.get(upload_id)
+    if not info or info.get("type") != "advanced":
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+
+    if info["received_chunks"] < info["total_chunks"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Upload incomplete: received {info['received_chunks']}/{info['total_chunks']} chunks"
+        )
+
+    _chunked_uploads.pop(upload_id, None)
+
+    tmp_path = info["tmp_path"]
+    if not os.path.exists(tmp_path):
+        raise HTTPException(status_code=500, detail="Temporary upload file missing")
+
+    actual_size = os.path.getsize(tmp_path)
+    if actual_size < info["total_size"]:
+        os.unlink(tmp_path)
+        raise HTTPException(status_code=400, detail="Upload file size mismatch")
+
+    if actual_size > info["total_size"]:
+        with open(tmp_path, "r+b") as f:
+            f.truncate(info["total_size"])
+
+    project_name = name_override or info["name"] or info["filename"] or "Unnamed Project"
     doc_id = hashlib.md5(f"adv-{project_name}-{time.time()}".encode()).hexdigest()[:10]
 
     placeholder = {
