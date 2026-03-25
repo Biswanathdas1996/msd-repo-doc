@@ -255,6 +255,26 @@ export function useAdvancedDoc(id: string | null) {
 
 // ─── Upload mutation ────────────────────────────────────────────────────────
 
+async function uploadChunkWithRetry(
+  url: string,
+  form: FormData,
+  maxRetries = 3,
+): Promise<void> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, { method: "POST", body: form });
+      if (res.ok) return;
+      if (attempt === maxRetries - 1) {
+        const text = await res.text();
+        throw new Error(text || `Upload chunk failed (status ${res.status})`);
+      }
+    } catch (err) {
+      if (attempt === maxRetries - 1) throw err;
+    }
+    await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+  }
+}
+
 export function useAdvancedDocUpload() {
   const qc = useQueryClient();
   return useMutation({
@@ -278,24 +298,32 @@ export function useAdvancedDocUpload() {
       }
       const { uploadId } = (await initRes.json()) as { uploadId: string };
 
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const blob = file.slice(start, end);
-
-        const form = new FormData();
-        form.append("file", blob, file.name);
-        form.append("uploadId", uploadId);
-        form.append("chunkIndex", String(i));
-
-        const chunkRes = await fetch(`${API_BASE}/advanced-docs/upload/chunk`, {
+      const keepaliveTimer = setInterval(() => {
+        fetch(`${API_BASE}/advanced-docs/upload/keepalive`, {
           method: "POST",
-          body: form,
-        });
-        if (!chunkRes.ok) {
-          const text = await chunkRes.text();
-          throw new Error(text || `Chunk ${i} upload failed`);
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploadId }),
+        }).catch(() => {});
+      }, 20_000);
+
+      try {
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const blob = file.slice(start, end);
+
+          const form = new FormData();
+          form.append("file", blob, file.name);
+          form.append("uploadId", uploadId);
+          form.append("chunkIndex", String(i));
+
+          await uploadChunkWithRetry(
+            `${API_BASE}/advanced-docs/upload/chunk`,
+            form,
+          );
         }
+      } finally {
+        clearInterval(keepaliveTimer);
       }
 
       const finalRes = await fetch(`${API_BASE}/advanced-docs/upload/finalize`, {

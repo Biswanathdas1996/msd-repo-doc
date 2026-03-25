@@ -404,7 +404,7 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
 
 
 _chunked_uploads: dict[str, dict] = {}
-CHUNKED_UPLOAD_MAX_AGE = 3600
+CHUNKED_UPLOAD_MAX_AGE = 7200
 
 def _cleanup_stale_chunked_uploads():
     now = time.time()
@@ -1095,10 +1095,6 @@ async def advanced_docs_upload_init(request: Request):
     if not filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
 
-    MAX_UPLOAD_SIZE = 500 * 1024 * 1024
-    if total_size > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="File too large. Max 500 MB for advanced analysis.")
-
     _cleanup_stale_chunked_uploads()
 
     upload_id = hashlib.md5(f"adv-{filename}-{time.time()}-{os.urandom(8).hex()}".encode()).hexdigest()[:16]
@@ -1159,6 +1155,22 @@ async def advanced_docs_upload_chunk(
 
     return {
         "chunkIndex": chunkIndex,
+        "receivedChunks": info["received_chunks"],
+        "totalChunks": info["total_chunks"],
+    }
+
+
+@app.post("/advanced-docs/upload/keepalive")
+async def advanced_docs_upload_keepalive(request: Request):
+    """Keep the upload session alive during slow transfers."""
+    body = await request.json()
+    upload_id = body.get("uploadId", "")
+    info = _chunked_uploads.get(upload_id)
+    if not info or info.get("type") != "advanced":
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+    info["last_activity"] = time.time()
+    return {
+        "status": "alive",
         "receivedChunks": info["received_chunks"],
         "totalChunks": info["total_chunks"],
     }
@@ -1290,14 +1302,21 @@ async def stream_advanced_doc(doc_id: str):
             return
 
         cursor = 0
+        heartbeat_interval = 15
+        last_heartbeat = time.time()
         while True:
             new_events, done = store.read_from(cursor)
             for ev in new_events:
                 payload = json.dumps(ev["data"], default=str)
                 yield f"event: {ev['event']}\ndata: {payload}\n\n"
                 cursor += 1
+                last_heartbeat = time.time()
             if done and not new_events:
                 break
+            now = time.time()
+            if now - last_heartbeat >= heartbeat_interval:
+                yield f"event: heartbeat\ndata: {json.dumps({'ts': int(now * 1000)})}\n\n"
+                last_heartbeat = now
             await asyncio.sleep(0.5)
 
     return StreamingResponse(
