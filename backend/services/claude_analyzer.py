@@ -106,10 +106,10 @@ def _determine_scale(file_count: int, total_lines: int) -> str:
 
 _SCALE_CONFIG = {
     #                    kg$    feat$  conn$  flow$  doc$   verify$ timeout turns  tree   effort_core  effort_secondary
-    ProjectScale.SMALL:  {"kg_budget": 1.5, "feat_budget": 1.5, "conn_budget": 0.5, "flow_budget": 0.5, "doc_budget": 1.5, "verify_budget": 0.5, "timeout": 600,  "max_turns": 30, "tree_cap": 300,  "effort": "high", "effort_doc": "high"},
-    ProjectScale.MEDIUM: {"kg_budget": 3.0, "feat_budget": 3.0, "conn_budget": 1.0, "flow_budget": 1.0, "doc_budget": 2.5, "verify_budget": 1.0, "timeout": 900,  "max_turns": 50, "tree_cap": 600,  "effort": "high", "effort_doc": "max"},
-    ProjectScale.LARGE:  {"kg_budget": 5.0, "feat_budget": 5.0, "conn_budget": 2.0, "flow_budget": 2.0, "doc_budget": 4.0, "verify_budget": 1.5, "timeout": 1200, "max_turns": 75, "tree_cap": 1000, "effort": "high", "effort_doc": "max"},
-    ProjectScale.XLARGE: {"kg_budget": 8.0, "feat_budget": 8.0, "conn_budget": 3.0, "flow_budget": 3.0, "doc_budget": 6.0, "verify_budget": 2.0, "timeout": 1800, "max_turns": 100, "tree_cap": 1500, "effort": "max",  "effort_doc": "max"},
+    ProjectScale.SMALL:  {"kg_budget": 1.5, "feat_budget": 1.5, "conn_budget": 0.5, "flow_budget": 0.5, "doc_budget": 1.5, "verify_budget": 0.5, "specs_budget": 2.0, "timeout": 600,  "max_turns": 30, "tree_cap": 300,  "effort": "high", "effort_doc": "high"},
+    ProjectScale.MEDIUM: {"kg_budget": 3.0, "feat_budget": 3.0, "conn_budget": 1.0, "flow_budget": 1.0, "doc_budget": 2.5, "verify_budget": 1.0, "specs_budget": 3.0, "timeout": 900,  "max_turns": 50, "tree_cap": 600,  "effort": "high", "effort_doc": "max"},
+    ProjectScale.LARGE:  {"kg_budget": 5.0, "feat_budget": 5.0, "conn_budget": 2.0, "flow_budget": 2.0, "doc_budget": 4.0, "verify_budget": 1.5, "specs_budget": 5.0, "timeout": 1200, "max_turns": 75, "tree_cap": 1000, "effort": "high", "effort_doc": "max"},
+    ProjectScale.XLARGE: {"kg_budget": 8.0, "feat_budget": 8.0, "conn_budget": 3.0, "flow_budget": 3.0, "doc_budget": 6.0, "verify_budget": 2.0, "specs_budget": 7.0, "timeout": 1800, "max_turns": 100, "tree_cap": 1500, "effort": "max",  "effort_doc": "max"},
 }
 
 
@@ -782,6 +782,233 @@ Return everything as Markdown text output, NOT as a file."""
                             effort=cfg["effort_doc"])
 
 
+def analyze_technical_specs(folder: str, tree: str, context_seed: str,
+                            kg: dict, features: dict, cfg: dict) -> dict:
+    """Use Claude Code CLI to extract technical specification sections from the codebase."""
+    seed_section = ""
+    if context_seed:
+        seed_section = f"""
+PRE-READ KEY FILES (use these as starting context, then explore further):
+{context_seed[:20000]}
+"""
+
+    kg_summary = ""
+    if kg:
+        kg_summary = f"""
+KNOWLEDGE GRAPH (components and relationships already discovered):
+{json.dumps(kg, indent=2)[:8000]}
+"""
+
+    feat_summary = ""
+    if features:
+        feat_summary = f"""
+FEATURES (already discovered):
+{json.dumps(features, indent=2)[:8000]}
+"""
+
+    prompt = f"""IMPORTANT — YOUR ENTIRE RESPONSE MUST BE A SINGLE JSON OBJECT. No prose, no markdown, no explanation before or after. Just raw JSON.
+
+You are a senior solutions architect. Explore this codebase using Read, Grep, and Glob tools to extract detailed technical specifications.
+
+RULES:
+- ONLY use Read, Grep, and Glob tools. Do NOT create, write, or edit any files.
+- After you finish reading files, your FINAL response text MUST be ONLY the JSON object below — no markdown fences, no commentary, no preamble. Start with {{ and end with }}.
+- For each section, if the codebase does not contain relevant information, set the value to null or an empty string.
+- Be thorough — read config files, schema definitions, route handlers, middleware, integration files, auth modules, workflow definitions, and any CRM/ERP-related code.
+
+The project structure is:
+{tree}
+{seed_section}
+{kg_summary}
+{feat_summary}
+ANALYSIS STRATEGY:
+1. Start with entry points and config files to understand the system scope
+2. Use Grep to find authentication patterns (OAuth, JWT, API keys, session management, role-based access)
+3. Use Grep to find entity/model/schema definitions (ORM models, database schemas, Salesforce objects, custom entities)
+4. Use Grep to find workflow/business rule implementations (automation, triggers, validation rules, process builders)
+5. Read JavaScript/TypeScript files for client-side customizations, form scripts, ribbon commands, web resources
+6. Use Grep to find integration patterns (REST, SOAP, webhooks, message queues, middleware)
+7. Look for module-specific components (Sales, Service, Marketing modules or equivalent domain areas)
+8. Read deployment and architecture config files for high-level architecture patterns
+
+OUTPUT FORMAT — respond with ONLY this JSON (no ```json fences, no text before/after):
+{{
+  "scope_definition": {{
+    "in_scope": ["List of items/modules/features that are in scope based on what the codebase implements"],
+    "out_of_scope": ["List of items that are referenced but not implemented, or explicitly excluded"],
+    "summary": "Brief narrative of what is in and out of scope"
+  }},
+  "solution_overview": {{
+    "summary": "High-level description of what the solution does",
+    "tech_stack": ["List of technologies, frameworks, platforms used"],
+    "deployment_model": "How the solution is deployed (cloud, on-premise, hybrid, etc.)",
+    "key_capabilities": ["List of key capabilities the solution provides"]
+  }},
+  "high_level_architecture": {{
+    "description": "Narrative description of the overall architecture",
+    "layers": [
+      {{
+        "name": "Layer name (e.g., Presentation, Business Logic, Data Access, Integration)",
+        "description": "What this layer does",
+        "components": ["Key components in this layer"]
+      }}
+    ],
+    "mermaid_diagram": "A Mermaid diagram showing the high-level architecture (graph TD format)"
+  }},
+  "erd": {{
+    "description": "Description of the data model and entity relationships",
+    "entities": [
+      {{
+        "name": "Entity/Table/Object name",
+        "type": "standard|custom",
+        "fields": [
+          {{
+            "name": "Field name",
+            "type": "Field data type",
+            "description": "What this field represents",
+            "is_key": false,
+            "is_required": false
+          }}
+        ],
+        "relationships": ["Descriptions of relationships to other entities"]
+      }}
+    ],
+    "mermaid_diagram": "A Mermaid erDiagram showing entity relationships"
+  }},
+  "standard_and_custom_entities": {{
+    "standard_entities": [
+      {{
+        "name": "Entity name",
+        "purpose": "What it's used for",
+        "customizations": ["Any customizations made to this standard entity"]
+      }}
+    ],
+    "custom_entities": [
+      {{
+        "name": "Custom entity name",
+        "purpose": "Why this custom entity was created",
+        "fields_summary": "Summary of key fields"
+      }}
+    ]
+  }},
+  "business_rules": {{
+    "workflows": [
+      {{
+        "name": "Workflow/Process name",
+        "trigger": "What triggers this workflow",
+        "description": "What the workflow does",
+        "steps": ["Ordered list of steps in the workflow"]
+      }}
+    ],
+    "validation_rules": ["List of validation rules found in the codebase"],
+    "automation": ["List of automated processes, triggers, scheduled jobs"]
+  }},
+  "javascript_customizations": {{
+    "client_scripts": [
+      {{
+        "name": "Script/file name",
+        "file_path": "Path to the file",
+        "purpose": "What this script does",
+        "events_handled": ["List of events this script handles (e.g., onLoad, onChange, onSave)"]
+      }}
+    ],
+    "web_resources": ["List of web resources, custom controls, PCF controls found"],
+    "libraries_used": ["External JS libraries used for client-side logic"]
+  }},
+  "auth_model": {{
+    "authentication_method": "How users authenticate (OAuth, JWT, SAML, API Key, etc.)",
+    "authorization_model": "How permissions are enforced (RBAC, ABAC, claims-based, etc.)",
+    "roles": [
+      {{
+        "name": "Role name",
+        "permissions": ["List of permissions/capabilities for this role"]
+      }}
+    ],
+    "security_features": ["List of security features: MFA, encryption, audit logging, etc."],
+    "file_paths": ["Paths to auth-related files"]
+  }},
+  "module_components": {{
+    "sales": {{
+      "components": [
+        {{
+          "name": "Component name",
+          "type": "form|view|dashboard|workflow|plugin|web_resource|report|chart",
+          "description": "What it does",
+          "file_path": "Path to the file"
+        }}
+      ],
+      "mermaid_diagram": "Mermaid diagram showing Sales module components and their relationships"
+    }},
+    "service": {{
+      "components": [
+        {{
+          "name": "Component name",
+          "type": "form|view|dashboard|workflow|plugin|web_resource|report|chart",
+          "description": "What it does",
+          "file_path": "Path to the file"
+        }}
+      ],
+      "mermaid_diagram": "Mermaid diagram showing Service module components and their relationships"
+    }},
+    "marketing": {{
+      "components": [
+        {{
+          "name": "Component name",
+          "type": "form|view|dashboard|workflow|plugin|web_resource|report|chart",
+          "description": "What it does",
+          "file_path": "Path to the file"
+        }}
+      ],
+      "mermaid_diagram": "Mermaid diagram showing Marketing module components and their relationships"
+    }}
+  }},
+  "integration_architecture": {{
+    "description": "Overview of how the system integrates with external services",
+    "integrations": [
+      {{
+        "name": "Integration name",
+        "type": "REST|SOAP|Webhook|Message Queue|File|Database|SDK",
+        "direction": "inbound|outbound|bidirectional",
+        "external_system": "Name of the external system",
+        "description": "What data/functionality is exchanged",
+        "endpoints": ["API endpoints or connection details"],
+        "file_paths": ["Files implementing this integration"]
+      }}
+    ],
+    "mermaid_diagram": "Mermaid diagram showing integration architecture"
+  }},
+  "integration_auth": {{
+    "mechanisms": [
+      {{
+        "integration_name": "Which integration this auth applies to",
+        "auth_type": "OAuth2|API Key|Certificate|Basic Auth|SAML|Custom Token",
+        "description": "How authentication works for this integration",
+        "token_management": "How tokens are stored, refreshed, rotated",
+        "file_paths": ["Files implementing this auth mechanism"]
+      }}
+    ]
+  }}
+}}
+
+Read the actual source code thoroughly. For fields where no information is found in the codebase, use null for objects or empty arrays for lists. If the project doesn't have Sales/Service/Marketing modules, map the closest equivalent domain areas or leave them with empty components arrays.
+
+REMINDER: Your response must start with {{ and end with }}. No other text."""
+
+    raw = _call_claude_cli(prompt, cwd=folder, timeout_seconds=cfg["timeout"],
+                           max_budget_usd=cfg["specs_budget"], max_turns=cfg["max_turns"],
+                           effort=cfg["effort_doc"])
+    try:
+        return _parse_json_response(raw, expected_keys=(
+            ("scope_definition", "solution_overview", "high_level_architecture"),
+            ("scope_definition", "solution_overview"),
+        ))
+    except ValueError:
+        return _retry_json_extraction(raw, cwd=folder, expected_keys=(
+            ("scope_definition", "solution_overview", "high_level_architecture"),
+            ("scope_definition", "solution_overview"),
+        ))
+
+
 # ---------------------------------------------------------------------------
 # Mermaid syntax validation
 # ---------------------------------------------------------------------------
@@ -1241,8 +1468,9 @@ ANALYSIS_STEPS = [
     {"key": "cross_validation",    "index": 3, "label": "Cross-validating results"},
     {"key": "feature_connections", "index": 4, "label": "Analyzing feature connections"},
     {"key": "flow_diagrams",       "index": 5, "label": "Generating flow diagrams"},
-    {"key": "documentation",       "index": 6, "label": "Writing documentation"},
-    {"key": "quality_check",       "index": 7, "label": "Quality scoring"},
+    {"key": "technical_specs",     "index": 6, "label": "Extracting technical specifications"},
+    {"key": "documentation",       "index": 7, "label": "Writing documentation"},
+    {"key": "quality_check",       "index": 8, "label": "Quality scoring"},
 ]
 TOTAL_STEPS = len(ANALYSIS_STEPS)
 
@@ -1339,6 +1567,7 @@ def run_advanced_analysis(
         "features": {},
         "feature_connections": {},
         "flow_diagrams": {},
+        "technical_specs": {},
         "documentation": "",
         "quality_score": {},
         "step_errors": {},
@@ -1514,7 +1743,27 @@ def run_advanced_analysis(
         _step_skip("flow_diagrams", reason)
     _notify(result)
 
-    # ── Step 6: Full Documentation ─────────────────────────────────────────
+    # ── Step 6: Technical Specifications ───────────────────────────────────
+    technical_specs: dict = {}
+    _step_start("technical_specs")
+    result["current_step"] = "technical_specs"
+    _notify(result)
+    try:
+        technical_specs = analyze_technical_specs(folder, tree, context_seed,
+                                                  knowledge_graph, features, cfg)
+        result["technical_specs"] = technical_specs
+        result["completed_steps"].append("technical_specs")
+        sections_found = sum(1 for k, v in technical_specs.items()
+                             if v and v != {} and v != [] and v is not None)
+        _step_complete("technical_specs", technical_specs,
+                       summary=f"{sections_found} specification sections extracted")
+    except Exception as e:
+        errors.append(f"Technical specs failed: {e}")
+        result["step_errors"]["technical_specs"] = str(e)
+        _step_error("technical_specs", str(e))
+    _notify(result)
+
+    # ── Step 7: Full Documentation ────────────────────────────────────────
     _step_start("documentation")
     result["current_step"] = "documentation"
     _notify(result)
@@ -1533,7 +1782,7 @@ def run_advanced_analysis(
         _step_error("documentation", str(e))
     _notify(result)
 
-    # ── Step 7: Quality Scoring ────────────────────────────────────────────
+    # ── Step 8: Quality Scoring ────────────────────────────────────────────
     _step_start("quality_check")
     result["current_step"] = "quality_check"
     _notify(result)

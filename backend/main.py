@@ -1139,6 +1139,7 @@ async def advanced_docs_upload(
         "features": {},
         "feature_connections": {},
         "flow_diagrams": {},
+        "technical_specs": {},
         "documentation": "",
         "step_errors": {},
         "completed_steps": [],
@@ -1180,6 +1181,7 @@ async def import_advanced_doc(request: Request):
     data.setdefault("features", data.get("features", {}))
     data.setdefault("feature_connections", data.get("feature_connections", {}))
     data.setdefault("flow_diagrams", data.get("flow_diagrams", {}))
+    data.setdefault("technical_specs", data.get("technical_specs", {}))
     data.setdefault("documentation", data.get("documentation", ""))
 
     advanced_docs_store[doc_id] = data
@@ -1204,7 +1206,8 @@ async def stream_advanced_doc(doc_id: str):
             yield f"event: connected\ndata: {json.dumps({'id': doc_id, 'name': data.get('name', '')}, default=str)}\n\n"
             for step_key in ["extraction", "knowledge_graph", "features",
                              "cross_validation", "feature_connections",
-                             "flow_diagrams", "documentation", "quality_check"]:
+                             "flow_diagrams", "technical_specs",
+                             "documentation", "quality_check"]:
                 step_errors = data.get("step_errors", {})
                 completed = data.get("completed_steps", [])
                 if step_key in completed:

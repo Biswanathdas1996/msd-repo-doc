@@ -137,6 +137,26 @@ artifacts-monorepo/
 - **Solution Detail**: Tabbed view with Overview, Knowledge Graph, Entities, Workflows, Plugins, AI Documentation
 - **Knowledge Graph Viewer**: Interactive node-based visualization using @xyflow/react
 - **AI Documentation**: Section selector, AI generation, markdown preview, verification, Word/PDF download
+- **Advanced Docs**: Claude Code CLI-powered analysis with tabs: Overview, Knowledge Graph, Features, Feature Connections, Flow Diagrams, Technical Specs, Documentation
+
+## Advanced Docs — Technical Specs Tab
+
+The Technical Specs tab (step key: `technical_specs`) uses Claude Code CLI to extract 11 structured specification sections from the codebase:
+1. Scope Definition (In-scope / Out-of-scope)
+2. Solution Overview (tech stack, deployment model, key capabilities)
+3. High-Level Architecture (layers + Mermaid diagram)
+4. Entity Relationship Diagram (ERD with fields + Mermaid)
+5. Standard & Custom Entities
+6. Business Rules / Workflow Processes
+7. JavaScript Logic & Client-Side Customizations
+8. Authentication & Authorization Model
+9. Module Components (Sales, Service, Marketing) with diagrams
+10. Technical Integration Architecture
+11. Integration Authentication Mechanisms
+
+Backend: `analyze_technical_specs()` in `backend/services/claude_analyzer.py`
+Frontend: `TechnicalSpecsTab` component in `artifacts/doc-generator/src/pages/AdvancedDocs.tsx`
+Types: `TechnicalSpecs` interface in `artifacts/doc-generator/src/hooks/use-advanced-docs.ts`
 
 ## Environment Variables
 

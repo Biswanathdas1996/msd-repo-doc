@@ -74,6 +74,92 @@ export interface QualityScore {
   meets_target: boolean;
 }
 
+export interface TechnicalSpecs {
+  scope_definition?: {
+    in_scope: string[];
+    out_of_scope: string[];
+    summary: string;
+  } | null;
+  solution_overview?: {
+    summary: string;
+    tech_stack: string[];
+    deployment_model: string;
+    key_capabilities: string[];
+  } | null;
+  high_level_architecture?: {
+    description: string;
+    layers: { name: string; description: string; components: string[] }[];
+    mermaid_diagram?: string;
+  } | null;
+  erd?: {
+    description: string;
+    entities: {
+      name: string;
+      type: string;
+      fields: { name: string; type: string; description: string; is_key: boolean; is_required: boolean }[];
+      relationships: string[];
+    }[];
+    mermaid_diagram?: string;
+  } | null;
+  standard_and_custom_entities?: {
+    standard_entities: { name: string; purpose: string; customizations: string[] }[];
+    custom_entities: { name: string; purpose: string; fields_summary: string }[];
+  } | null;
+  business_rules?: {
+    workflows: { name: string; trigger: string; description: string; steps: string[] }[];
+    validation_rules: string[];
+    automation: string[];
+  } | null;
+  javascript_customizations?: {
+    client_scripts: { name: string; file_path: string; purpose: string; events_handled: string[] }[];
+    web_resources: string[];
+    libraries_used: string[];
+  } | null;
+  auth_model?: {
+    authentication_method: string;
+    authorization_model: string;
+    roles: { name: string; permissions: string[] }[];
+    security_features: string[];
+    file_paths: string[];
+  } | null;
+  module_components?: {
+    sales?: {
+      components: { name: string; type: string; description: string; file_path: string }[];
+      mermaid_diagram?: string;
+    };
+    service?: {
+      components: { name: string; type: string; description: string; file_path: string }[];
+      mermaid_diagram?: string;
+    };
+    marketing?: {
+      components: { name: string; type: string; description: string; file_path: string }[];
+      mermaid_diagram?: string;
+    };
+  } | null;
+  integration_architecture?: {
+    description: string;
+    integrations: {
+      name: string;
+      type: string;
+      direction: string;
+      external_system: string;
+      description: string;
+      endpoints: string[];
+      file_paths: string[];
+    }[];
+    mermaid_diagram?: string;
+  } | null;
+  integration_auth?: {
+    mechanisms: {
+      integration_name: string;
+      auth_type: string;
+      description: string;
+      token_management: string;
+      file_paths: string[];
+    }[];
+  } | null;
+}
+
 export interface AdvancedDocResult {
   id: string;
   name: string;
@@ -93,6 +179,7 @@ export interface AdvancedDocResult {
     diagrams: FlowDiagram[];
     system_overview_diagram?: FlowDiagram;
   };
+  technical_specs?: TechnicalSpecs;
   documentation: string;
   quality_score?: QualityScore;
   cross_validation?: { confidence: number; assessment: string; corrections: string[] };
@@ -126,8 +213,9 @@ const STEP_DEFAULTS: StreamStep[] = [
   { step: "cross_validation",    label: "Cross-validating results",        step_index: 3, status: "pending" },
   { step: "feature_connections", label: "Analyzing feature connections",   step_index: 4, status: "pending" },
   { step: "flow_diagrams",       label: "Generating flow diagrams",        step_index: 5, status: "pending" },
-  { step: "documentation",       label: "Writing documentation",           step_index: 6, status: "pending" },
-  { step: "quality_check",       label: "Quality scoring",                 step_index: 7, status: "pending" },
+  { step: "technical_specs",     label: "Extracting technical specifications", step_index: 6, status: "pending" },
+  { step: "documentation",       label: "Writing documentation",           step_index: 7, status: "pending" },
+  { step: "quality_check",       label: "Quality scoring",                 step_index: 8, status: "pending" },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -324,6 +412,8 @@ export function useAdvancedDocStream(id: string | null) {
               next.feature_connections = d.data;
             } else if (d.step === "flow_diagrams") {
               next.flow_diagrams = d.data;
+            } else if (d.step === "technical_specs") {
+              next.technical_specs = d.data;
             } else if (d.step === "documentation") {
               next.documentation = d.data.documentation;
             } else if (d.step === "quality_check") {

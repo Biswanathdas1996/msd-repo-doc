@@ -8,6 +8,7 @@ import {
   useImportAdvancedDoc,
   exportAdvancedDoc,
   type AdvancedDocResult,
+  type TechnicalSpecs,
   type StreamStep,
   type StepStatus,
   type QualityScore,
@@ -46,6 +47,13 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  ClipboardList,
+  Shield,
+  Database,
+  Layers,
+  Workflow,
+  Code2,
+  Plug,
 } from "lucide-react";
 
 // ─── Mermaid rendering ───────────────────────────────────────────────────────
@@ -495,7 +503,7 @@ function DocMarkdown({ content, containerRef }: { content: string; containerRef?
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "knowledge-graph" | "features" | "connections" | "flows" | "documentation";
+type TabKey = "overview" | "knowledge-graph" | "features" | "connections" | "flows" | "technical-specs" | "documentation";
 
 const TABS: { key: TabKey; label: string; icon: typeof FileCode2 }[] = [
   { key: "overview", label: "Overview", icon: FolderTree },
@@ -503,6 +511,7 @@ const TABS: { key: TabKey; label: string; icon: typeof FileCode2 }[] = [
   { key: "features", label: "Features", icon: ListTree },
   { key: "connections", label: "Feature Connections", icon: Link2 },
   { key: "flows", label: "Flow Diagrams", icon: GitBranch },
+  { key: "technical-specs", label: "Technical Specs", icon: ClipboardList },
   { key: "documentation", label: "Documentation", icon: FileText },
 ];
 
@@ -958,6 +967,504 @@ function FlowsTab({ data }: { data: AdvancedDocResult }) {
 
       {diagrams.length === 0 && !overview && (
         <div className="text-center text-muted-foreground py-12">No flow diagrams generated</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Technical Specs Tab ────────────────────────────────────────────────────
+
+function SpecSection({ title, icon: Icon, children }: { title: string; icon: typeof Shield; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border border-border/50 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 bg-card/80 hover:bg-card transition-colors text-left"
+      >
+        <Icon className="w-5 h-5 text-primary shrink-0" />
+        <span className="font-semibold text-sm flex-1">{title}</span>
+        <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && <div className="p-5 space-y-4 bg-background/50">{children}</div>}
+    </div>
+  );
+}
+
+function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
+  const specs = data.technical_specs;
+
+  if (!specs || Object.keys(specs).length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
+        <p className="text-lg font-medium">No technical specifications available</p>
+        <p className="text-sm mt-1">This analysis was run before the technical specs feature was added, or the step failed.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {specs.scope_definition && (
+        <SpecSection title="Scope Definition" icon={Layers}>
+          {specs.scope_definition.summary && (
+            <p className="text-sm text-muted-foreground">{specs.scope_definition.summary}</p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-2">In Scope</h4>
+              <ul className="space-y-1">
+                {(specs.scope_definition.in_scope || []).map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-2">Out of Scope</h4>
+              <ul className="space-y-1">
+                {(specs.scope_definition.out_of_scope || []).map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <X className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </SpecSection>
+      )}
+
+      {specs.solution_overview && (
+        <SpecSection title="Solution Overview" icon={Sparkles}>
+          <p className="text-sm">{specs.solution_overview.summary}</p>
+          {specs.solution_overview.deployment_model && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Deployment:</span>
+              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">{specs.solution_overview.deployment_model}</span>
+            </div>
+          )}
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Tech Stack</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {(specs.solution_overview.tech_stack || []).map((t, i) => (
+                <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">{t}</span>
+              ))}
+            </div>
+          </div>
+          {(specs.solution_overview.key_capabilities || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Key Capabilities</h4>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                {specs.solution_overview.key_capabilities.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </SpecSection>
+      )}
+
+      {specs.high_level_architecture && (
+        <SpecSection title="High-Level Architecture" icon={Layers}>
+          <p className="text-sm">{specs.high_level_architecture.description}</p>
+          {(specs.high_level_architecture.layers || []).length > 0 && (
+            <div className="space-y-3">
+              {specs.high_level_architecture.layers.map((layer, i) => (
+                <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
+                  <h4 className="font-semibold text-sm mb-1">{layer.name}</h4>
+                  <p className="text-xs text-muted-foreground mb-2">{layer.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(layer.components || []).map((c, j) => (
+                      <span key={j} className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{c}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {specs.high_level_architecture.mermaid_diagram && (
+            <MermaidDiagram id="arch-overview" chart={specs.high_level_architecture.mermaid_diagram} />
+          )}
+        </SpecSection>
+      )}
+
+      {specs.erd && (
+        <SpecSection title="Entity Relationship Diagram (ERD)" icon={Database}>
+          <p className="text-sm">{specs.erd.description}</p>
+          {(specs.erd.entities || []).length > 0 && (
+            <div className="space-y-3">
+              {specs.erd.entities.map((entity, i) => (
+                <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="font-semibold text-sm">{entity.name}</h4>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${entity.type === "custom" ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400"}`}>
+                      {entity.type}
+                    </span>
+                  </div>
+                  {(entity.fields || []).length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border/30">
+                            <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Field</th>
+                            <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Type</th>
+                            <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Description</th>
+                            <th className="text-center py-1.5 px-2 text-muted-foreground font-medium">Key</th>
+                            <th className="text-center py-1.5 px-2 text-muted-foreground font-medium">Req</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entity.fields.map((f, j) => (
+                            <tr key={j} className="border-b border-border/10">
+                              <td className="py-1.5 px-2 font-mono">{f.name}</td>
+                              <td className="py-1.5 px-2 text-muted-foreground">{f.type}</td>
+                              <td className="py-1.5 px-2 text-muted-foreground">{f.description}</td>
+                              <td className="py-1.5 px-2 text-center">{f.is_key ? <KeyRound className="w-3 h-3 text-amber-400 inline" /> : ""}</td>
+                              <td className="py-1.5 px-2 text-center">{f.is_required ? <CheckCircle2 className="w-3 h-3 text-green-400 inline" /> : ""}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {(entity.relationships || []).length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground font-medium mb-1">Relationships:</p>
+                      <ul className="space-y-0.5">
+                        {entity.relationships.map((r, j) => (
+                          <li key={j} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                            <Link2 className="w-3 h-3 mt-0.5 shrink-0" />
+                            {r}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {specs.erd.mermaid_diagram && (
+            <MermaidDiagram id="erd-diagram" chart={specs.erd.mermaid_diagram} />
+          )}
+        </SpecSection>
+      )}
+
+      {specs.standard_and_custom_entities && (
+        <SpecSection title="Standard & Custom Entities" icon={Database}>
+          {(specs.standard_and_custom_entities.standard_entities || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-blue-400 mb-2">Standard Entities</h4>
+              <div className="space-y-2">
+                {specs.standard_and_custom_entities.standard_entities.map((e, i) => (
+                  <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-sm">{e.name}</span>
+                      <span className="px-1.5 py-0.5 rounded text-xs bg-blue-500/10 text-blue-400">standard</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{e.purpose}</p>
+                    {(e.customizations || []).length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {e.customizations.map((c, j) => (
+                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(specs.standard_and_custom_entities.custom_entities || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">Custom Entities</h4>
+              <div className="space-y-2">
+                {specs.standard_and_custom_entities.custom_entities.map((e, i) => (
+                  <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-sm">{e.name}</span>
+                      <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">custom</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{e.purpose}</p>
+                    {e.fields_summary && <p className="text-xs text-muted-foreground mt-1 italic">{e.fields_summary}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </SpecSection>
+      )}
+
+      {specs.business_rules && (
+        <SpecSection title="Business Rules & Workflow Processes" icon={Workflow}>
+          {(specs.business_rules.workflows || []).length > 0 && (
+            <div className="space-y-3">
+              {specs.business_rules.workflows.map((wf, i) => (
+                <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
+                  <h4 className="font-semibold text-sm mb-1">{wf.name}</h4>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">Trigger: {wf.trigger}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{wf.description}</p>
+                  {(wf.steps || []).length > 0 && (
+                    <ol className="space-y-1">
+                      {wf.steps.map((s, j) => (
+                        <li key={j} className="flex items-start gap-2 text-xs">
+                          <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-medium">{j + 1}</span>
+                          <span className="mt-0.5">{s}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {(specs.business_rules.validation_rules || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Validation Rules</h4>
+              <ul className="space-y-1">
+                {specs.business_rules.validation_rules.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(specs.business_rules.automation || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Automation</h4>
+              <ul className="space-y-1">
+                {specs.business_rules.automation.map((a, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <Workflow className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </SpecSection>
+      )}
+
+      {specs.javascript_customizations && (
+        <SpecSection title="JavaScript Logic & Client-Side Customizations" icon={Code2}>
+          {(specs.javascript_customizations.client_scripts || []).length > 0 && (
+            <div className="space-y-2">
+              {specs.javascript_customizations.client_scripts.map((s, i) => (
+                <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm">{s.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1">{s.purpose}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{s.file_path}</p>
+                  {(s.events_handled || []).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {s.events_handled.map((e, j) => (
+                        <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{e}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {(specs.javascript_customizations.web_resources || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Web Resources</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {specs.javascript_customizations.web_resources.map((r, i) => (
+                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{r}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {(specs.javascript_customizations.libraries_used || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Libraries Used</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {specs.javascript_customizations.libraries_used.map((l, i) => (
+                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20">{l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </SpecSection>
+      )}
+
+      {specs.auth_model && (
+        <SpecSection title="Authentication & Authorization Model" icon={Shield}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-card/60 rounded-lg p-3 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Authentication Method</p>
+              <p className="text-sm font-medium">{specs.auth_model.authentication_method}</p>
+            </div>
+            <div className="bg-card/60 rounded-lg p-3 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Authorization Model</p>
+              <p className="text-sm font-medium">{specs.auth_model.authorization_model}</p>
+            </div>
+          </div>
+          {(specs.auth_model.roles || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Roles</h4>
+              <div className="space-y-2">
+                {specs.auth_model.roles.map((role, i) => (
+                  <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
+                    <span className="font-semibold text-sm">{role.name}</span>
+                    {(role.permissions || []).length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {role.permissions.map((p, j) => (
+                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{p}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(specs.auth_model.security_features || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Security Features</h4>
+              <ul className="space-y-1">
+                {specs.auth_model.security_features.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(specs.auth_model.file_paths || []).length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Related Files</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {specs.auth_model.file_paths.map((p, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{p}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </SpecSection>
+      )}
+
+      {specs.module_components && (
+        <SpecSection title="Module Components (Sales, Service, Marketing)" icon={Layers}>
+          {(["sales", "service", "marketing"] as const).map((mod) => {
+            const modData = specs.module_components?.[mod];
+            if (!modData || (modData.components || []).length === 0) return null;
+            return (
+              <div key={mod} className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-primary mb-2 capitalize">{mod} Module</h4>
+                <div className="space-y-2">
+                  {modData.components.map((c, i) => (
+                    <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30 flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm">{c.name}</span>
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary">{c.type}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{c.description}</p>
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5">{c.file_path}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {modData.mermaid_diagram && (
+                  <MermaidDiagram id={`module-${mod}`} chart={modData.mermaid_diagram} />
+                )}
+              </div>
+            );
+          })}
+        </SpecSection>
+      )}
+
+      {specs.integration_architecture && (
+        <SpecSection title="Technical Integration Architecture" icon={Plug}>
+          <p className="text-sm">{specs.integration_architecture.description}</p>
+          {(specs.integration_architecture.integrations || []).length > 0 && (
+            <div className="space-y-3">
+              {specs.integration_architecture.integrations.map((intg, i) => (
+                <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="font-semibold text-sm">{intg.name}</h4>
+                    <span className="px-1.5 py-0.5 rounded text-xs bg-violet-500/10 text-violet-400">{intg.type}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                      intg.direction === "bidirectional" ? "bg-amber-500/10 text-amber-400" :
+                      intg.direction === "inbound" ? "bg-green-500/10 text-green-400" :
+                      "bg-blue-500/10 text-blue-400"
+                    }`}>{intg.direction}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    <span className="font-medium">External System:</span> {intg.external_system}
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">{intg.description}</p>
+                  {(intg.endpoints || []).length > 0 && (
+                    <div className="mb-1">
+                      <span className="text-xs text-muted-foreground font-medium">Endpoints:</span>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {intg.endpoints.map((ep, j) => (
+                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{ep}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(intg.file_paths || []).length > 0 && (
+                    <div>
+                      <span className="text-xs text-muted-foreground font-medium">Files:</span>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {intg.file_paths.map((fp, j) => (
+                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{fp}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {specs.integration_architecture.mermaid_diagram && (
+            <MermaidDiagram id="integration-arch" chart={specs.integration_architecture.mermaid_diagram} />
+          )}
+        </SpecSection>
+      )}
+
+      {specs.integration_auth && (specs.integration_auth.mechanisms || []).length > 0 && (
+        <SpecSection title="Integration Authentication Mechanisms" icon={KeyRound}>
+          <div className="space-y-3">
+            {specs.integration_auth.mechanisms.map((mech, i) => (
+              <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="font-semibold text-sm">{mech.integration_name}</h4>
+                  <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{mech.auth_type}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-1">{mech.description}</p>
+                {mech.token_management && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium">Token Management:</span> {mech.token_management}
+                  </p>
+                )}
+                {(mech.file_paths || []).length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {mech.file_paths.map((fp, j) => (
+                      <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{fp}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </SpecSection>
       )}
     </div>
   );
@@ -1506,6 +2013,9 @@ export default function AdvancedDocs() {
           {activeTab === "features" && <FeaturesTab data={displayDoc} />}
           {activeTab === "connections" && <ConnectionsTab data={displayDoc} />}
           {activeTab === "flows" && <FlowsTab data={displayDoc} />}
+          {activeTab === "technical-specs" && (
+            <TechnicalSpecsTab data={displayDoc} />
+          )}
           {activeTab === "documentation" && (
             <DocumentationTab data={displayDoc} />
           )}
