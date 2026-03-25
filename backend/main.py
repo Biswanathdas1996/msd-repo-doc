@@ -1084,30 +1084,41 @@ def _background_advanced_analysis(zip_path: str, project_name: str, doc_id: str)
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/advanced-docs/upload")
-async def advanced_docs_upload(
-    request: Request,
-    file: UploadFile = File(...),
-    name: str = Form(default=""),
-):
+async def advanced_docs_upload(request: Request):
     """Upload a ZIP file for advanced Claude-powered analysis."""
-    if not file.filename or not file.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Please upload a ZIP file")
-
     MAX_SIZE = 500 * 1024 * 1024
     CHUNK = 32 * 1024 * 1024
 
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" not in content_type:
+        raise HTTPException(status_code=400, detail="Expected multipart/form-data")
+
     tmp_path = None
+    filename = ""
+    form_name = ""
+
     try:
+        form = await request.form()
+        upload_file = form.get("file")
+        form_name = form.get("name", "") or ""
+
+        if not upload_file or not hasattr(upload_file, "filename"):
+            raise HTTPException(status_code=400, detail="No file uploaded")
+
+        filename = upload_file.filename or ""
+        if not filename.lower().endswith(".zip"):
+            raise HTTPException(status_code=400, detail="Please upload a ZIP file")
+
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             tmp_path = tmp.name
             total = 0
             while True:
                 try:
-                    chunk = await file.read(CHUNK)
-                except ClientDisconnect:
+                    chunk = await upload_file.read(CHUNK)
+                except Exception:
                     if tmp_path and os.path.exists(tmp_path):
                         os.unlink(tmp_path)
-                    raise HTTPException(status_code=499, detail="Client disconnected")
+                    raise HTTPException(status_code=499, detail="Client disconnected or read error")
                 if not chunk:
                     break
                 total += len(chunk)
@@ -1120,11 +1131,12 @@ async def advanced_docs_upload(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.error("Advanced docs upload failed: %s", exc, exc_info=True)
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 
-    project_name = name or file.filename or "Unnamed Project"
+    project_name = form_name or filename or "Unnamed Project"
     doc_id = hashlib.md5(f"adv-{project_name}-{time.time()}".encode()).hexdigest()[:10]
 
     placeholder = {
