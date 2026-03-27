@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
+import GenericProjects from "@/pages/GenericProjects";
 import SolutionDetail from "@/pages/SolutionDetail";
 import AdvancedDocs from "@/pages/AdvancedDocs";
 import NotFound from "@/pages/not-found";
@@ -21,6 +22,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/other-projects" component={GenericProjects} />
       <Route path="/solutions/:id" component={SolutionDetail} />
       <Route path="/advanced-docs" component={AdvancedDocs} />
       <Route component={NotFound} />

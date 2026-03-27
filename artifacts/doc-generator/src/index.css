@@ -128,7 +128,7 @@
   .mermaid-container .node .label p,
   .mermaid-container .node .nodeLabel,
   .mermaid-container .label foreignObject div {
-    font-size: 13px !important;
+    font-size: 15px !important;
     font-weight: 500 !important;
     line-height: 1.5 !important;
     color: #f1f5f9 !important;
@@ -152,7 +152,7 @@
   }
   .mermaid-container .cluster span.nodeLabel,
   .mermaid-container .cluster .nodeLabel {
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.1em !important;
@@ -163,7 +163,7 @@
     stroke-width: 2px !important;
   }
   .mermaid-container .edgeLabel {
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 500 !important;
   }
   .mermaid-container .edgeLabel rect {

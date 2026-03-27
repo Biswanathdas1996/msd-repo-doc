@@ -53,6 +53,16 @@ export interface SolutionMetadata {
   publisher?: string | null;
   /** @nullable */
   description?: string | null;
+  /**
+   * Artefact kind (e.g. generic_code, source_code, ax_fo)
+   * @nullable
+   */
+  type?: string | null;
+  /**
+   * generic vs dynamics-oriented processing
+   * @nullable
+   */
+  projectKind?: string | null;
 }
 
 export interface Solution {
@@ -164,11 +174,24 @@ export interface KnowledgeGraph {
   relationships: Relationship[];
 }
 
+/**
+ * generic = index as non-Dynamics source tree for PwC Gen AI docs; auto = detect Dynamics solution vs C# plugin repo
+ */
+export type GitHubImportRequestProcessMode =
+  (typeof GitHubImportRequestProcessMode)[keyof typeof GitHubImportRequestProcessMode];
+
+export const GitHubImportRequestProcessMode = {
+  auto: "auto",
+  generic: "generic",
+} as const;
+
 export interface GitHubImportRequest {
   /** GitHub repository URL */
   url: string;
   /** Optional display name for the solution */
   name?: string;
+  /** generic = index as non-Dynamics source tree for PwC Gen AI docs; auto = detect Dynamics solution vs C# plugin repo */
+  processMode?: GitHubImportRequestProcessMode;
 }
 
 export type GenerateDocsRequestSectionsItem =
@@ -247,3 +270,18 @@ export type UploadSolutionBody = {
   /** Optional display name for the solution */
   name?: string;
 };
+
+export type ListSolutionsParams = {
+  /**
+   * When generic, only non-Dynamics (generic code) projects. When dynamics, exclude generic code projects. Omit for all solutions.
+   */
+  projectKind?: ListSolutionsProjectKind;
+};
+
+export type ListSolutionsProjectKind =
+  (typeof ListSolutionsProjectKind)[keyof typeof ListSolutionsProjectKind];
+
+export const ListSolutionsProjectKind = {
+  dynamics: "dynamics",
+  generic: "generic",
+} as const;

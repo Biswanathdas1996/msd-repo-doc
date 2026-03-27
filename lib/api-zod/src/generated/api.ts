@@ -44,6 +44,14 @@ export const UploadSolutionResponse = zod.object({
       solutionVersion: zod.string().nullish(),
       publisher: zod.string().nullish(),
       description: zod.string().nullish(),
+      type: zod
+        .string()
+        .nullish()
+        .describe("Artefact kind (e.g. generic_code, source_code, ax_fo)"),
+      projectKind: zod
+        .string()
+        .nullish()
+        .describe("generic vs dynamics-oriented processing"),
     })
     .optional(),
 });
@@ -52,12 +60,20 @@ export const UploadSolutionResponse = zod.object({
  * Download and process a Dynamics solution from a public GitHub repository URL
  * @summary Import a Dynamics solution from a GitHub repository
  */
+export const importFromGithubBodyProcessModeDefault = `auto`;
+
 export const ImportFromGithubBody = zod.object({
   url: zod.string().describe("GitHub repository URL"),
   name: zod
     .string()
     .optional()
     .describe("Optional display name for the solution"),
+  processMode: zod
+    .enum(["auto", "generic"])
+    .default(importFromGithubBodyProcessModeDefault)
+    .describe(
+      "generic = index as non-Dynamics source tree for PwC Gen AI docs; auto = detect Dynamics solution vs C# plugin repo",
+    ),
 });
 
 export const ImportFromGithubResponse = zod.object({
@@ -77,6 +93,14 @@ export const ImportFromGithubResponse = zod.object({
       solutionVersion: zod.string().nullish(),
       publisher: zod.string().nullish(),
       description: zod.string().nullish(),
+      type: zod
+        .string()
+        .nullish()
+        .describe("Artefact kind (e.g. generic_code, source_code, ax_fo)"),
+      projectKind: zod
+        .string()
+        .nullish()
+        .describe("generic vs dynamics-oriented processing"),
     })
     .optional(),
 });
@@ -84,6 +108,15 @@ export const ImportFromGithubResponse = zod.object({
 /**
  * @summary List all uploaded solutions
  */
+export const ListSolutionsQueryParams = zod.object({
+  projectKind: zod
+    .enum(["dynamics", "generic"])
+    .optional()
+    .describe(
+      "When generic, only non-Dynamics (generic code) projects. When dynamics, exclude generic code projects. Omit for all solutions.",
+    ),
+});
+
 export const ListSolutionsResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
@@ -120,6 +153,14 @@ export const GetSolutionResponse = zod.object({
       solutionVersion: zod.string().nullish(),
       publisher: zod.string().nullish(),
       description: zod.string().nullish(),
+      type: zod
+        .string()
+        .nullish()
+        .describe("Artefact kind (e.g. generic_code, source_code, ax_fo)"),
+      projectKind: zod
+        .string()
+        .nullish()
+        .describe("generic vs dynamics-oriented processing"),
     })
     .optional(),
 });

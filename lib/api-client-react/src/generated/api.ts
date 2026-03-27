@@ -27,6 +27,7 @@ import type {
   GitHubImportRequest,
   HealthStatus,
   KnowledgeGraph,
+  ListSolutionsParams,
   Plugin,
   Solution,
   SolutionSummary,
@@ -303,41 +304,57 @@ export const useImportFromGithub = <
 /**
  * @summary List all uploaded solutions
  */
-export const getListSolutionsUrl = () => {
-  return `/api/py-api/solutions`;
+export const getListSolutionsUrl = (params?: ListSolutionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/py-api/solutions?${stringifiedParams}`
+    : `/api/py-api/solutions`;
 };
 
 export const listSolutions = async (
+  params?: ListSolutionsParams,
   options?: RequestInit,
 ): Promise<SolutionSummary[]> => {
-  return customFetch<SolutionSummary[]>(getListSolutionsUrl(), {
+  return customFetch<SolutionSummary[]>(getListSolutionsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListSolutionsQueryKey = () => {
-  return [`/api/py-api/solutions`] as const;
+export const getListSolutionsQueryKey = (params?: ListSolutionsParams) => {
+  return [`/api/py-api/solutions`, ...(params ? [params] : [])] as const;
 };
 
 export const getListSolutionsQueryOptions = <
   TData = Awaited<ReturnType<typeof listSolutions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listSolutions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListSolutionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSolutions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListSolutionsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListSolutionsQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listSolutions>>> = ({
     signal,
-  }) => listSolutions({ signal, ...requestOptions });
+  }) => listSolutions(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listSolutions>>,
@@ -358,15 +375,18 @@ export type ListSolutionsQueryError = ErrorType<unknown>;
 export function useListSolutions<
   TData = Awaited<ReturnType<typeof listSolutions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listSolutions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListSolutionsQueryOptions(options);
+>(
+  params?: ListSolutionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSolutions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSolutionsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

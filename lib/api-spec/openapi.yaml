@@ -92,6 +92,16 @@ paths:
       operationId: listSolutions
       tags: [solutions]
       summary: List all uploaded solutions
+      parameters:
+        - name: projectKind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [dynamics, generic]
+          description: >-
+            When generic, only non-Dynamics (generic code) projects. When dynamics,
+            exclude generic code projects. Omit for all solutions.
       responses:
         "200":
           description: List of solutions
@@ -533,6 +543,12 @@ components:
           type: ["string", "null"]
         description:
           type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+          description: Artefact kind (e.g. generic_code, source_code, ax_fo)
+        projectKind:
+          type: ["string", "null"]
+          description: generic vs dynamics-oriented processing
     Entity:
       type: object
       properties:
@@ -727,6 +743,13 @@ components:
         name:
           type: string
           description: Optional display name for the solution
+        processMode:
+          type: string
+          enum: [auto, generic]
+          default: auto
+          description: >-
+            generic = index as non-Dynamics source tree for PwC Gen AI docs;
+            auto = detect Dynamics solution vs C# plugin repo
       required:
         - url
     GenerateDocsRequest:

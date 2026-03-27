@@ -1619,3 +1619,407 @@ def _parse_verification_json(result_text: str, default_section: str = "general")
             "issues": [{"severity": "warning", "section": default_section, "message": "Could not parse verification response"}],
             "summary": "Verification response was not valid JSON",
         }
+
+
+# ---------------------------------------------------------------------------
+# Solution detail tabs: features, connections, flow diagrams (PwC Gen AI)
+# ---------------------------------------------------------------------------
+
+SOLUTION_INSIGHT_KEYS: frozenset[str] = frozenset({
+    "features",
+    "feature_connections",
+    "flow_diagram",
+})
+
+_INSIGHT_SYSTEM_PROMPT = """You are a senior solution architect documenting software from structured metadata
+(knowledge graph: entities, workflows, plugins, relationships, and detected functional flows).
+
+Apply the same evidence rules as formal technical design: only describe what is supported by the JSON.
+Step and condition names are labels, not proven business logic. Plugin descriptions are summaries, not source code.
+Output well-structured Markdown. For Mermaid, use quoted node labels like id["Label"] and avoid {{ }} or <br> in labels.
+
+This may be a Microsoft Dynamics solution or a generic indexed codebase — use the component names and relationships as given."""
+
+def _compact_graph_for_insights(graph: KnowledgeGraph, max_chars: int = 32000) -> str:
+    """Smaller than _compact_graph_summary: fits Gemini / LiteLLM ~32k input-token windows.
+
+    Omits verbose warnings and caps entities, fields, steps, and relationship rows.
+    Technical JSON often tokenizes at ~2–4 chars/token; stay well under 32k tokens total input.
+    """
+    max_rels = min(800, len(graph.relationships))
+    rels: list[dict] = [
+        {"source": r.source, "target": r.target, "type": r.type}
+        for r in graph.relationships[:max_rels]
+    ]
+
+    max_entities = 120
+    max_fields_per_entity = 15
+    entities_out: dict = {}
+    for idx, (ename, edata) in enumerate(graph.entities.items()):
+        if idx >= max_entities:
+            break
+        # KnowledgeGraphEntity.fields is list[str] (names); fieldDetails has name+type
+        if edata.fieldDetails:
+            fld_slice = edata.fieldDetails[:max_fields_per_entity]
+            field_rows = [
+                {"name": fd.name, "type": (fd.type or "")[:64]} for fd in fld_slice
+            ]
+            total_f = len(edata.fieldDetails)
+        else:
+            fld_slice = edata.fields[:max_fields_per_entity]
+            field_rows = [{"name": str(fn)[:128], "type": "string"} for fn in fld_slice]
+            total_f = len(edata.fields)
+        entities_out[ename] = {
+            "fields": field_rows,
+            "fields_omitted": max(0, total_f - len(field_rows)),
+            "workflows": list(edata.workflows)[:18],
+            "plugins": list(edata.plugins)[:18],
+            "forms": list(edata.forms)[:12],
+        }
+
+    max_wf = 120
+    workflows_out: dict = {}
+    for idx, (wname, wdata) in enumerate(graph.workflows.items()):
+        if idx >= max_wf:
+            break
+        steps = [str(s)[:72] for s in (wdata.steps or [])[:12]]
+        conds = [str(c)[:72] for c in (wdata.conditions or [])[:8]]
+        workflows_out[wname] = {
+            "triggerEntity": wdata.triggerEntity,
+            "trigger": wdata.trigger,
+            "mode": wdata.mode,
+            "steps": steps,
+            "steps_omitted": max(0, len(wdata.steps or []) - len(steps)),
+            "conditions": conds,
+            "plugins": list(wdata.plugins or [])[:12],
+            "relatedEntities": list(wdata.relatedEntities or [])[:12],
+        }
+
+    max_pl = 150
+    plugins_out: dict = {}
+    for idx, (pname, pdata) in enumerate(graph.plugins.items()):
+        if idx >= max_pl:
+            break
+        desc = (pdata.description or "").strip()
+        if len(desc) > 200:
+            desc = desc[:180] + "…"
+        plugins_out[pname] = {
+            "triggerEntity": pdata.triggerEntity,
+            "operation": pdata.operation,
+            "stage": pdata.stage,
+            "description": desc or None,
+        }
+
+    roles_out = {
+        n: {
+            "privilege_count": len(r.privileges or []),
+            "privileges_sample": list((r.privileges or [])[:25]),
+        }
+        for n, r in list(graph.roles.items())[:80]
+    }
+
+    wr_names = list(graph.webResources.keys())[:200]
+
+    payload = {
+        "_note": (
+            "Compact bundle for large-solution limits. Steps/conditions are labels only. "
+            "Omitted counts mean more data exists in the full graph."
+        ),
+        "counts": {
+            "entities": len(graph.entities),
+            "entities_included": len(entities_out),
+            "workflows": len(graph.workflows),
+            "workflows_included": len(workflows_out),
+            "plugins": len(graph.plugins),
+            "plugins_included": len(plugins_out),
+            "relationships": len(graph.relationships),
+            "relationships_included": len(rels),
+        },
+        "relationships": rels,
+        "entities": entities_out,
+        "workflows": workflows_out,
+        "plugins": plugins_out,
+        "roles": roles_out,
+        "webresource_names": wr_names,
+    }
+
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    if len(raw) <= max_chars:
+        return raw
+
+    # Second pass: drop per-entity field lists, keep counts only
+    for ed in entities_out.values():
+        ed["field_count_included"] = len(ed.pop("fields", []))
+        ed.pop("fields_omitted", None)
+    payload["entities"] = entities_out
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    if len(raw) <= max_chars:
+        return raw
+
+    # Third pass: fewer relationships
+    payload["relationships"] = rels[: min(200, len(rels))]
+    payload["counts"]["relationships_included"] = len(payload["relationships"])
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    if len(raw) <= max_chars:
+        return raw
+
+    return raw[: max_chars - 24] + "\n…[truncated]"
+
+
+_INSIGHT_USER_PROMPTS: dict[str, str] = {
+    "features": """Produce a **Feature list** for this solution.
+
+### Summary
+One short paragraph on how features were inferred from the metadata.
+
+### Feature table
+| # | Feature name | Category | Components involved | Notes |
+Use categories such as Data, Automation, UI/Forms, Security, Integration where they fit.
+
+### Feature details
+For each feature (group related components), use #### [Feature name] with bullets:
+- **Components**: exact names from metadata
+- **Description**: grounded only in names, relationships, and descriptions provided
+
+Rules: Every feature must map to at least one entity, workflow, plugin, form, role, or web resource in the data.
+Do not invent capabilities not evidenced by the graph.""",
+    "feature_connections": """Explain **how features connect** across the solution.
+
+### Connection overview
+2–4 paragraphs on cross-cutting themes using only `relationships` and functional flows.
+
+### Connection table
+| Source | Target | Relationship type | What it implies (metadata-level only) |
+
+### Feature interaction map
+One Mermaid `flowchart LR` showing major features or component groups as nodes and edges labeled with relationship types from the metadata. Wrap in ```mermaid fence.
+
+### Dependencies
+Bullet list of important dependency chains (A → B → C) using exact names from the graph.
+
+Rules: Do not claim runtime behavior beyond what relationships and flow records state.""",
+    "flow_diagram": """Generate **detailed flow diagrams** with Gen AI from the metadata.
+
+### Narrative
+Brief explanation of the main end-to-end flows (which entities/workflows/plugins participate).
+
+### Mermaid diagrams (robust for large solutions)
+Prefer **2–4 smaller** ```mermaid blocks over one enormous chart if there are many components.
+Each block: `flowchart TD` or `flowchart LR`. Use **short alphanumeric node ids** (e.g. `n1`, `n2`, `wf1`) and put human-readable text in **quoted labels**: `n1["Account entity"]`.
+Do **not** use `end` as a node id (reserved). Avoid `{{` / `}}` and `<br>` in labels.
+Keep each diagram under ~45 nodes when possible; split by process or layer if needed.
+
+### Primary flow
+First ```mermaid block: main path with decision points only if conditions exist in metadata; edge labels from metadata only.
+
+### Additional diagrams
+Add more ```mermaid blocks for secondary flows or layers (data vs process) as needed.
+
+### Legend
+Table mapping node ids used in diagrams to actual component names from the metadata.
+
+Rules: Every node and edge must correspond to data in the bundle. If steps are only file references, state that in the narrative.""",
+}
+
+
+def generate_solution_insight(
+    insight_key: str,
+    graph: KnowledgeGraph,
+    functional_flows: list[dict],
+) -> str:
+    """Single-call PwC Gen AI markdown for a solution-detail insight tab."""
+    if insight_key not in SOLUTION_INSIGHT_KEYS:
+        raise ValueError(
+            f"Unknown insight key {insight_key!r}; expected one of {sorted(SOLUTION_INSIGHT_KEYS)}"
+        )
+
+    # Keep total prompt under ~32k input tokens (Vertex / LiteLLM); full graph JSON can be huge.
+    graph_bundle = _compact_graph_for_insights(graph, max_chars=28_000)
+    flows_json = json.dumps(functional_flows, ensure_ascii=False, default=str)
+    max_flows_chars = 4_000
+    if len(flows_json) > max_flows_chars:
+        flows_json = flows_json[:max_flows_chars] + "\n…(truncated functional_flows)"
+
+    task = _INSIGHT_USER_PROMPTS[insight_key]
+    user_prompt = (
+        f"{task}\n\n## Knowledge graph (compact JSON)\n{graph_bundle}\n\n"
+        f"## Functional flows (JSON)\n{flows_json}\n"
+    )
+
+    # Hard ceiling: 32k-token models (e.g. gemini-2.5-flash) count system + user; stay conservative.
+    max_user_chars = 36_000
+    if len(user_prompt) > max_user_chars:
+        overhead = len(task) + 120
+        room = max(10_000, max_user_chars - overhead)
+        graph_bundle = _compact_graph_for_insights(
+            graph, max_chars=max(8000, room - max_flows_chars)
+        )
+        user_prompt = (
+            f"{task}\n\n## Knowledge graph (compact JSON)\n{graph_bundle}\n\n"
+            f"## Functional flows (JSON)\n{flows_json}\n"
+        )
+        if len(user_prompt) > max_user_chars:
+            user_prompt = user_prompt[:max_user_chars] + "\n…(user prompt truncated for model context limit)\n"
+
+    try:
+        content = _call_pwc_genai(
+            messages=[
+                {"role": "system", "content": _INSIGHT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=8192,
+            temperature=0.25,
+        )
+        if not content or not content.strip():
+            return "## No content\n\nThe model returned an empty response."
+        return content.strip()
+    except Exception as e:
+        logger.exception("solution insight %s failed", insight_key)
+        return f"## Generation error\n\n{str(e)}"
+
+
+_CHAT_SYSTEM_PROMPT = """You answer questions about ONE software project using only the grounding material in the user message (knowledge graph JSON, functional flows, optional doc excerpts, cached insights, metadata). You do not browse the web or use outside knowledge.
+
+**How to write answers (required):**
+- **Lead with the point**: First 1–3 short sentences = the direct answer. No filler intros (avoid "The application, named X, is a generic code project that appears to be…" unless the user explicitly asked for a one-line product summary).
+- **Business + technical**: State **what it means for the business or process** in plain language, then anchor it with **exact names** from the data — entities, workflows, plugins, relationships, files — in `backticks`.
+- **Specific, not vague**: Prefer concrete lists (components, triggers, steps **as labeled in metadata**) over words like "platform", "simulation environment", or "appears to be" unless those phrases are verbatim in the provided text.
+- **Keep it simple**: Short paragraphs; use `-` bullets for multiple items. Skip marketing tone and long narrative. If the extract is thin, say exactly what is **not** in the data in one sentence.
+- **Markdown**: Use `code` for names; use **bold** sparingly for section labels only if needed. No Mermaid unless the user asks and the data supports it.
+
+**Grounding rules:**
+- If the answer is not in the grounding blocks, say you cannot determine it from this project's extracted data and name what would be needed (e.g. a specific entity or workflow).
+- Do not invent APIs, runtime behavior, or features beyond the metadata. Workflow steps and conditions are labels, not proven execution logic.
+- If the question is unrelated to this project, decline in one sentence and say you only use the provided project extract."""
+
+
+def _truncate(s: str, max_chars: int) -> str:
+    s = (s or "").strip()
+    if len(s) <= max_chars:
+        return s
+    return s[: max_chars - 1] + "…"
+
+
+def _docs_excerpt_for_chat(docs: GeneratedDocs | dict | None, max_total: int = 14_000) -> str:
+    if not docs:
+        return ""
+    if isinstance(docs, dict):
+        sections = [s for s in (docs.get("sections", []) or []) if isinstance(s, dict)]
+    else:
+        sections = [s.model_dump() for s in (docs.sections or [])]
+    if not sections:
+        return ""
+    parts: list[str] = []
+    total = 0
+    for sec in sorted(sections, key=lambda x: x.get("order", 0)):
+        title = sec.get("title", "")
+        body = _truncate(sec.get("content", "") or "", 2_400)
+        block = f"### {title}\n{body}\n"
+        if total + len(block) > max_total:
+            break
+        parts.append(block)
+        total += len(block)
+    return "\n".join(parts).strip()
+
+
+def _insights_excerpt_for_chat(insights: dict | None, max_chars: int = 6_000) -> str:
+    if not insights:
+        return ""
+    try:
+        raw = json.dumps(insights, ensure_ascii=False, default=str)
+    except Exception:
+        return ""
+    return _truncate(raw, max_chars)
+
+
+def answer_solution_chat(
+    graph: KnowledgeGraph,
+    functional_flows: list[dict],
+    user_message: str,
+    history: list[dict],
+    *,
+    solution_name: str = "",
+    metadata: dict | None = None,
+    docs: GeneratedDocs | dict | None = None,
+    solution_insights: dict | None = None,
+) -> str:
+    """PwC Gen AI: Q&A strictly grounded in graph, flows, and optional generated docs/insights."""
+    msg = (user_message or "").strip()
+    if not msg:
+        return "Please enter a question."
+
+    graph_bundle = _compact_graph_for_insights(graph, max_chars=22_000)
+    flows_json = json.dumps(functional_flows or [], ensure_ascii=False, default=str)
+    if len(flows_json) > 4_000:
+        flows_json = flows_json[:4_000] + "\n…(truncated functional_flows)"
+
+    docs_block = _docs_excerpt_for_chat(docs, max_total=12_000)
+    insights_block = _insights_excerpt_for_chat(solution_insights, max_chars=5_000)
+    meta = metadata or {}
+    meta_line = json.dumps(
+        {"name": solution_name or meta.get("name"), **{k: v for k, v in meta.items() if k in ("solutionVersion", "publisher", "description", "uniqueName", "type", "projectKind")}},
+        ensure_ascii=False,
+        default=str,
+    )
+
+    # Fit into one user prompt; shrink graph if needed
+    history_lines: list[str] = []
+    for h in (history or [])[-8:]:
+        role = (h.get("role") or "").strip().lower()
+        content = _truncate((h.get("content") or "").strip(), 2_000)
+        if role not in ("user", "assistant") or not content:
+            continue
+        history_lines.append(f"{role.upper()}: {content}")
+    history_text = "\n".join(history_lines) if history_lines else "(none)"
+
+    def build_user_prompt(gb: str) -> str:
+        parts = [
+            "## Solution metadata\n",
+            meta_line,
+            "\n## Knowledge graph (compact JSON)\n",
+            gb,
+            "\n## Functional flows (JSON)\n",
+            flows_json,
+        ]
+        if insights_block:
+            parts.extend(["\n## Cached Gen AI insights (JSON; may be partial)\n", insights_block])
+        if docs_block:
+            parts.extend(["\n## AI documentation excerpts (may be partial)\n", docs_block])
+        parts.extend(
+            [
+                "\n## Prior turns (short)\n",
+                history_text,
+                "\n## Current question\n",
+                msg,
+                "\n\nReply in plain, concise business-and-technical language per your system instructions. No long preamble.\n",
+            ]
+        )
+        return "".join(parts)
+
+    user_prompt = build_user_prompt(graph_bundle)
+    max_user = 34_000
+    if len(user_prompt) > max_user:
+        docs_block = _docs_excerpt_for_chat(docs, max_total=6_000)
+        insights_block = _insights_excerpt_for_chat(solution_insights, max_chars=2_500)
+        user_prompt = build_user_prompt(graph_bundle)
+    if len(user_prompt) > max_user:
+        graph_bundle = _compact_graph_for_insights(graph, max_chars=16_000)
+        user_prompt = build_user_prompt(graph_bundle)
+    if len(user_prompt) > max_user:
+        user_prompt = user_prompt[:max_user] + "\n…(prompt truncated)\n"
+
+    try:
+        content = _call_pwc_genai(
+            messages=[
+                {"role": "system", "content": _CHAT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=2048,
+            temperature=0.15,
+        )
+        if not content or not content.strip():
+            return "The model returned an empty response. Try rephrasing your question."
+        return content.strip()
+    except Exception as e:
+        logger.exception("solution chat failed")
+        raise RuntimeError(str(e)) from e

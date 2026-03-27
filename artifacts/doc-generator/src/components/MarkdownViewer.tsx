@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useEffect, useRef, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
+import { computeReadableFitScale } from '@/lib/mermaidFitScale';
 
 function saveSvgAsPng(svgHtml: string, filename = 'diagram.png', scale = 3) {
   const container = document.createElement('div');
@@ -62,20 +63,21 @@ mermaid.initialize({
   securityLevel: 'loose',
   fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
   flowchart: {
-    useMaxWidth: true,
+    // Natural SVG size + outer scroll — large diagrams stay valid and pan/zoom still work
+    useMaxWidth: false,
     htmlLabels: true,
     curve: 'basis',
-    padding: 24,
-    nodeSpacing: 60,
-    rankSpacing: 70,
-    diagramPadding: 32,
-    wrappingWidth: 220,
+    padding: 16,
+    nodeSpacing: 50,
+    rankSpacing: 55,
+    diagramPadding: 20,
+    wrappingWidth: 260,
   },
   themeVariables: {
     darkMode: true,
     background: 'transparent',
     fontFamily: "'Inter', system-ui, sans-serif",
-    fontSize: '14px',
+    fontSize: '16px',
 
     primaryColor: '#1e3a5f',
     primaryTextColor: '#f1f5f9',
@@ -110,17 +112,56 @@ mermaid.initialize({
 
 /**
  * Sanitise LLM-generated Mermaid code to fix common syntax issues
- * that cause the Mermaid parser to fail.
+ * that cause the Mermaid parser to fail (especially large / noisy diagrams).
  */
 function sanitiseMermaid(raw: string): string {
-  let s = raw.trim();
-  s = s.replace(/^```mermaid\s*/i, '').replace(/```\s*$/, '');
+  let s = raw.trim().replace(/^\uFEFF/, '');
+  s = s.replace(/^```mermaid\s*/i, '').replace(/```\s*$/i, '');
   s = s.replace(/(\b\w+)\{\{([^}]*?)\}\}/g, (_m: string, id: string, label: string) => {
     const clean = label.trim().replace(/"/g, "'");
     return `${id}["${clean}"]`;
   });
   s = s.replace(/\(\s*[·•\-–]\s*\)/g, '');
+
+  const lines = s.split('\n');
+  const out: string[] = [];
+  for (let line of lines) {
+    // Drop nulls / control chars that break the parser
+    line = line.replace(/\0/g, '');
+    const trimmed = line.trim();
+    // Subgraph terminator: lone `end` — must stay untouched
+    if (trimmed !== 'end') {
+      // Reserved word `end` as a node id breaks flowcharts — rename at line start only
+      if (/^\s*end(\s|$|\[|\(|\{|-->|&)/i.test(line)) {
+        line = line.replace(/^(\s*)end\b/i, '$1endN');
+      }
+    }
+    // Overlong lines (huge labels) can blow memory / token limits — cap label payload per line
+    const maxLine = 2400;
+    if (line.length > maxLine) {
+      line = line.slice(0, maxLine) + '…';
+    }
+    out.push(line);
+  }
+  s = out.join('\n');
+
   return s.trim();
+}
+
+const MERMAID_RENDER_TIMEOUT_MS = 120_000;
+
+function renderMermaidWithTimeout(diagramId: string, definition: string): Promise<{ svg: string }> {
+  let tid: ReturnType<typeof setTimeout> | undefined;
+  const renderPromise = mermaid.render(diagramId, definition).finally(() => {
+    if (tid !== undefined) clearTimeout(tid);
+  });
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    tid = setTimeout(
+      () => reject(new Error(`Diagram render timed out after ${MERMAID_RENDER_TIMEOUT_MS / 1000}s (try Expand or split into smaller diagrams).`)),
+      MERMAID_RENDER_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([renderPromise, timeoutPromise]);
 }
 
 /* ─── Minimap ───────────────────────────────────────────────────────────── */
@@ -243,8 +284,13 @@ function FullscreenDiagramViewer({
 
   const resetView = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
   const fitToScreen = useCallback(() => {
-    if (contentSize.w > 0 && contentSize.h > 0 && viewportSize.w > 0) {
-      const fitScale = Math.min(viewportSize.w / contentSize.w, viewportSize.h / contentSize.h) * 0.92;
+    if (contentSize.w > 0 && contentSize.h > 0 && viewportSize.w > 0 && viewportSize.h > 0) {
+      const fitScale = computeReadableFitScale(
+        viewportSize.w,
+        viewportSize.h,
+        contentSize.w,
+        contentSize.h,
+      );
       setScale(fitScale);
       setTranslate({ x: 0, y: 0 });
     }
@@ -381,6 +427,7 @@ function MermaidBlock({ code }: { code: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const uniqueId = useId().replace(/:/g, '_');
+  const renderSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -391,21 +438,42 @@ function MermaidBlock({ code }: { code: string }) {
     dragging: false, startX: 0, startY: 0, origX: 0, origY: 0,
   });
 
+  const fitToContainer = useCallback(() => {
+    if (!canvasRef.current) return;
+    const svgEl = canvasRef.current.querySelector('svg');
+    if (!svgEl || !containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const vb = svgEl.viewBox?.baseVal;
+    const svgW = vb?.width && vb.width > 0 ? vb.width : svgEl.getBoundingClientRect().width || 800;
+    const svgH = vb?.height && vb.height > 0 ? vb.height : svgEl.getBoundingClientRect().height || 600;
+    if (svgW <= 0 || svgH <= 0) return;
+    const fitScale = computeReadableFitScale(containerRect.width, containerRect.height, svgW, svgH);
+    setScale(fitScale);
+    setTranslate({ x: 0, y: 0 });
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    const id = `mermaid_${uniqueId}`;
+    renderSeq.current += 1;
+    const id = `mermaid_${uniqueId}_${renderSeq.current}_${Math.random().toString(36).slice(2, 9)}`;
     setLoading(true);
+    setError(null);
+    setSvgHtml(null);
 
     (async () => {
       try {
         const sanitised = sanitiseMermaid(code);
-        let { svg } = await mermaid.render(id, sanitised);
+        if (!sanitised.trim()) {
+          throw new Error('Empty Mermaid diagram');
+        }
+        let { svg } = await renderMermaidWithTimeout(id, sanitised);
         const parser = new DOMParser();
         const doc = parser.parseFromString(svg, 'image/svg+xml');
         const svgEl = doc.querySelector('svg');
         if (svgEl) {
           svgEl.style.backgroundColor = 'transparent';
           svgEl.removeAttribute('bgcolor');
+          svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           svg = new XMLSerializer().serializeToString(svgEl);
         }
         if (!cancelled) {
@@ -414,21 +482,38 @@ function MermaidBlock({ code }: { code: string }) {
       } catch (err: any) {
         if (!cancelled) {
           setError(err?.message || 'Invalid Mermaid syntax');
-          document.getElementById(`d${id}`)?.remove();
+          try {
+            document.getElementById(`d${id}`)?.remove();
+          } catch {
+            /* ignore */
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [code, uniqueId]);
 
+  // Fit large diagrams into the scroll viewport once SVG is ready
+  useEffect(() => {
+    if (!svgHtml || loading) return;
+    const raf = requestAnimationFrame(() => fitToContainer());
+    return () => cancelAnimationFrame(raf);
+  }, [svgHtml, loading, fitToContainer]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    // Allow normal scrolling for oversized SVGs; zoom with Ctrl/Cmd + wheel
+    if (!e.ctrlKey && !e.metaKey) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    setScale(prev => Math.min(5, Math.max(0.1, prev * (1 + delta))));
+    setScale(prev => Math.min(5, Math.max(0.05, prev * (1 + delta))));
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -448,18 +533,6 @@ function MermaidBlock({ code }: { code: string }) {
   const handlePointerUp = useCallback(() => { dragRef.current.dragging = false; }, []);
 
   const resetView = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
-
-  const fitToContainer = useCallback(() => {
-    if (!canvasRef.current) return;
-    const svgEl = canvasRef.current.querySelector('svg');
-    if (!svgEl || !containerRef.current) return;
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const svgW = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 800;
-    const svgH = svgEl.viewBox?.baseVal?.height || svgEl.clientHeight || 600;
-    const fitScale = Math.min(containerRect.width / svgW, containerRect.height / svgH) * 0.9;
-    setScale(fitScale);
-    setTranslate({ x: 0, y: 0 });
-  }, []);
 
   const openFullscreen = useCallback(() => setFullscreen(true), []);
   const closeFullscreen = useCallback(() => setFullscreen(false), []);
@@ -552,9 +625,10 @@ function MermaidBlock({ code }: { code: string }) {
           {/* Zoomable/draggable canvas */}
           <div
             ref={containerRef}
-            className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
+            className="relative overflow-auto cursor-grab active:cursor-grabbing select-none"
             style={{
-              minHeight: 300,
+              minHeight: 320,
+              maxHeight: 'min(85vh, 1400px)',
               background: 'radial-gradient(ellipse at 50% 50%, rgba(30, 58, 95, 0.15) 0%, transparent 70%)',
             }}
             onWheel={handleWheel}
@@ -572,7 +646,7 @@ function MermaidBlock({ code }: { code: string }) {
             )}
             <div
               ref={canvasRef}
-              className={`mermaid-container flex justify-center p-8 transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
+              className={`mermaid-container flex justify-center items-start p-6 sm:p-8 min-w-min transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
               style={{
                 transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
                 transformOrigin: 'center center',
@@ -587,11 +661,11 @@ function MermaidBlock({ code }: { code: string }) {
             <div className="flex items-center justify-center gap-6 py-2 border-t border-blue-500/10 bg-blue-950/20">
               <span className="flex items-center gap-1.5 text-[10px] text-blue-400/40">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-                Scroll to zoom
+                Ctrl/⌘ + scroll to zoom
               </span>
               <span className="flex items-center gap-1.5 text-[10px] text-blue-400/40">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0 0v2.5m0-2.5h2.5M7 14H4.5m4-5.5l-.757-.757A2 2 0 006.172 7H4a1 1 0 00-1 1v1.172a2 2 0 00.586 1.414l8.828 8.828a2 2 0 002.828 0l2.172-2.172a2 2 0 000-2.828L8.586 5.586A2 2 0 007.172 5H7v3.5z" /></svg>
-                Drag to pan
+                Drag to pan · scrollbars for large diagrams
               </span>
               <button
                 onClick={openFullscreen}

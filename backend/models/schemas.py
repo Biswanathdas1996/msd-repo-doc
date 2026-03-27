@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
 
@@ -156,6 +156,9 @@ class SolutionMetadata(BaseModel):
     uniqueName: Optional[str] = None
     isManaged: Optional[bool] = None
     dependencies: Optional[list[str]] = None
+    # generic_code | source_code | ax_fo | etc.
+    type: Optional[str] = None
+    projectKind: Optional[str] = None
 
 
 class SolutionSummary(BaseModel):
@@ -201,6 +204,27 @@ class GeneratedDocs(BaseModel):
 class GitHubImportRequest(BaseModel):
     url: str
     name: str = ""
+    processMode: str = "auto"
+
+
+class SolutionChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str = Field(default="", max_length=8000)
+
+
+class SolutionChatRequest(BaseModel):
+    """Ask a question grounded only in parsed/generated project data."""
+    message: str = Field(..., max_length=8000)
+    history: list[SolutionChatMessage] = Field(default_factory=list, max_length=20)
+
+
+class SolutionChatResponse(BaseModel):
+    answer: str
+
+
+class GenerateInsightRequest(BaseModel):
+    """PwC Gen AI insight type for solution detail tabs."""
+    insightType: str
 
 
 class GenerateDocsRequest(BaseModel):

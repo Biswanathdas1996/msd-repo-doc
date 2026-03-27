@@ -27,6 +27,8 @@ import { X, Database, Zap, Puzzle, GitBranch, Hash, ArrowRight } from 'lucide-re
 
 interface KnowledgeGraphViewerProps {
   data: KnowledgeGraph;
+  /** When `generic`, node roles and edge captions use repository-index vocabulary instead of CRM (workflow/plugin/entity). */
+  projectKind?: string | null;
 }
 
 const NODE_RADIUS = 44;
@@ -39,15 +41,108 @@ const COLORS = {
 
 type NodeType = keyof typeof COLORS;
 
-interface NodeData {
+const ROLE_LABELS_DEFAULT: Record<NodeType, string> = {
+  Entity: 'Entity',
+  Workflow: 'Workflow',
+  Plugin: 'Plugin',
+};
+
+/** Vocabulary when the backend indexed a plain source tree (see generic_project_parser). */
+const ROLE_LABELS_GENERIC: Record<NodeType, string> = {
+  Entity: 'Folder / package',
+  Workflow: 'Repo summary',
+  Plugin: 'Source file',
+};
+
+function isGenericProjectKind(kind: string | null | undefined): boolean {
+  return (kind ?? '').toLowerCase() === 'generic';
+}
+
+function roleLabelsForProject(projectKind: string | null | undefined): Record<NodeType, string> {
+  return isGenericProjectKind(projectKind) ? ROLE_LABELS_GENERIC : ROLE_LABELS_DEFAULT;
+}
+
+/** Human-readable edge text; internal `type` stays stable for styling keys. */
+const EDGE_LABELS_DEFAULT: Record<string, string> = {
+  triggers: 'triggers',
+  used_in: 'used in workflow',
+  invokes: 'invokes',
+  uses_plugin: 'uses plugin',
+  has_form: 'has form',
+  grants_access: 'grants access',
+  has_webresource: 'has web resource',
+  extends: 'extends',
+  reads_writes: 'reads / writes',
+  controls: 'controls',
+  uses: 'uses',
+  implements: 'implements',
+  queries: 'queries',
+  data_contract_for: 'data contract for',
+  controlled_by: 'controlled by',
+  response_for: 'response for',
+  request_for: 'request for',
+  related_to: 'related to',
+  modifies: 'modifies',
+  produces_data_for: 'produces data for',
+};
+
+const EDGE_LABELS_GENERIC: Record<string, string> = {
+  /** folder → synthetic aggregate node (structural root binding) */
+  triggers: 'aggregate_root',
+  /** folder → aggregate: namespace / module under repository aggregate */
+  used_in: 'scoped_to_aggregate',
+  /** aggregate → file: compositional inclusion in indexed graph */
+  invokes: 'aggregate_composition',
+  /** folder → file: declaration scoped to enclosing module path */
+  uses_plugin: 'declared_in_scope',
+  has_form: 'has form',
+  grants_access: 'grants access',
+  has_webresource: 'has web resource',
+  extends: 'extends',
+  reads_writes: 'reads / writes',
+  controls: 'controls',
+  uses: 'uses',
+  implements: 'implements',
+  queries: 'queries',
+  data_contract_for: 'data contract for',
+  controlled_by: 'controlled by',
+  response_for: 'response for',
+  request_for: 'request for',
+  related_to: 'related to',
+  modifies: 'modifies',
+  produces_data_for: 'produces data for',
+};
+
+function snakeCaseToPhrase(typeKey: string): string {
+  return typeKey
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function edgeDisplayLabel(
+  relType: string | undefined,
+  apiLabel: string | undefined,
+  projectKind: string | null | undefined,
+): string | undefined {
+  if (apiLabel?.trim()) return apiLabel.trim();
+  if (!relType) return undefined;
+  const table = isGenericProjectKind(projectKind) ? EDGE_LABELS_GENERIC : EDGE_LABELS_DEFAULT;
+  return table[relType] ?? snakeCaseToPhrase(relType);
+}
+
+interface NodeData extends Record<string, unknown> {
   label: string;
   nodeType: NodeType;
+  /** Short label for the node role (e.g. Module vs Entity) — shown on the node and in the detail panel. */
+  roleLabel: string;
   details: Record<string, unknown>;
   selected?: boolean;
 }
 
 function CircleNode({ data, selected }: NodeProps) {
-  const { label, nodeType, details } = data as NodeData;
+  const { label, nodeType, roleLabel } = data as NodeData;
   const c = COLORS[nodeType] ?? COLORS.Entity;
   const Icon = nodeType === 'Entity' ? Database : nodeType === 'Workflow' ? Zap : Puzzle;
 
@@ -105,7 +200,7 @@ function CircleNode({ data, selected }: NodeProps) {
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
         }}>
-          {nodeType}
+          {roleLabel}
         </span>
       </div>
     </>
@@ -191,16 +286,25 @@ interface SimNode extends SimulationNodeDatum {
   id: string;
 }
 
-function buildGraph(data: KnowledgeGraph) {
-  const nodes: Array<{ id: string; nodeType: NodeType; details: Record<string, unknown> }> = [];
-  const edges: Array<{ id: string; source: string; target: string; label?: string }> = [];
+interface RawEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  relType?: string;
+}
+
+function buildGraph(data: KnowledgeGraph, projectKind: string | null | undefined) {
+  const roleLabels = roleLabelsForProject(projectKind);
+  const nodes: Array<{ id: string; nodeType: NodeType; roleLabel: string; details: Record<string, unknown> }> = [];
+  const edges: RawEdge[] = [];
   const seen = new Set<string>();
   const edgeSeen = new Set<string>();
 
   const addNode = (id: string, type: NodeType, details: Record<string, unknown>) => {
     if (!seen.has(id)) {
       seen.add(id);
-      nodes.push({ id, nodeType: type, details });
+      nodes.push({ id, nodeType: type, roleLabel: roleLabels[type], details });
     }
   };
 
@@ -208,7 +312,7 @@ function buildGraph(data: KnowledgeGraph) {
     const key = `${source}→${target}`;
     if (!edgeSeen.has(key) && source !== target) {
       edgeSeen.add(key);
-      const displayLabel = label ?? relType;
+      const displayLabel = edgeDisplayLabel(relType, label, projectKind);
       edges.push({ id: `e-${source}-${target}`, source, target, label: displayLabel, relType });
     }
   };
@@ -277,7 +381,7 @@ function DetailsPanel({ nodeId, nodeData, onClose }: {
   nodeData: NodeData;
   onClose: () => void;
 }) {
-  const { nodeType, details } = nodeData;
+  const { nodeType, roleLabel, details } = nodeData;
   const c = COLORS[nodeType];
   const Icon = nodeType === 'Entity' ? Database : nodeType === 'Workflow' ? Zap : Puzzle;
   const info = details as any;
@@ -307,7 +411,7 @@ function DetailsPanel({ nodeId, nodeData, onClose }: {
             padding: '3px 8px', borderRadius: 20, letterSpacing: '0.06em',
             textTransform: 'uppercase', alignSelf: 'flex-start', flexShrink: 0,
           }}>
-            <Icon size={9} /> {nodeType}
+            <Icon size={9} /> {roleLabel}
           </span>
           <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 700, lineHeight: 1.3, wordBreak: 'break-word' }}>
             {nodeId}
@@ -434,13 +538,13 @@ function EmptyMsg({ text }: { text: string }) {
   return <span style={{ color: '#475569', fontSize: 11, fontStyle: 'italic' }}>{text}</span>;
 }
 
-function GraphInner({ data }: KnowledgeGraphViewerProps) {
+function GraphInner({ data, projectKind }: KnowledgeGraphViewerProps) {
   const { fitView } = useReactFlow();
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { graphNodes, graphEdges } = useMemo(() => {
-    const { nodes: raw, edges: rawEdges } = buildGraph(data);
+    const { nodes: raw, edges: rawEdges } = buildGraph(data, projectKind);
 
     const width = 1100, height = 750;
     const positions = computeForceLayout(raw.map(n => n.id), rawEdges, width, height);
@@ -449,7 +553,12 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
       id: n.id,
       type: 'circle',
       position: positions[n.id] ?? { x: 0, y: 0 },
-      data: { label: n.id, nodeType: n.nodeType, details: n.details } as NodeData,
+      data: {
+        label: n.id,
+        nodeType: n.nodeType,
+        roleLabel: n.roleLabel,
+        details: n.details,
+      } as NodeData,
       style: { width: NODE_RADIUS * 2, height: NODE_RADIUS * 2 },
     }));
 
@@ -471,7 +580,7 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
     });
 
     return { graphNodes, graphEdges };
-  }, [data]);
+  }, [data, projectKind]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(graphNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(graphEdges);
@@ -497,6 +606,8 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
     workflows: nodes.filter(n => (n.data as NodeData).nodeType === 'Workflow').length,
     plugins:   nodes.filter(n => (n.data as NodeData).nodeType === 'Plugin').length,
   }), [nodes]);
+
+  const roleLegend = roleLabelsForProject(projectKind);
 
   // Derive edge-type legend dynamically from actual graph data (no hardcoding)
   const activeEdgeTypes = useMemo(() => {
@@ -571,9 +682,9 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {([
-                ['Entity',   counts.entities,  COLORS.Entity],
-                ['Workflow', counts.workflows, COLORS.Workflow],
-                ['Plugin',   counts.plugins,   COLORS.Plugin],
+                [roleLegend.Entity,   counts.entities,  COLORS.Entity],
+                [roleLegend.Workflow, counts.workflows, COLORS.Workflow],
+                [roleLegend.Plugin,   counts.plugins,   COLORS.Plugin],
               ] as const).map(([label, count, c]) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{
@@ -607,6 +718,7 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
                 </p>
                 {activeEdgeTypes.map(lbl => {
                   const eStyle = EDGE_STYLES[lbl] ?? DEFAULT_EDGE_STYLE;
+                  const phrase = edgeDisplayLabel(lbl, undefined, projectKind) ?? lbl;
                   return (
                   <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <svg width={18} height={8} style={{ flexShrink: 0 }}>
@@ -616,7 +728,7 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
                         strokeDasharray={eStyle.dash}
                       />
                     </svg>
-                    <span style={{ color: '#94a3b8', fontSize: 10 }}>{lbl.replace(/_/g, ' ')}</span>
+                    <span style={{ color: '#94a3b8', fontSize: 10 }}>{phrase}</span>
                   </div>
                   );
                 })}
@@ -653,10 +765,10 @@ function GraphInner({ data }: KnowledgeGraphViewerProps) {
   );
 }
 
-export function KnowledgeGraphViewer({ data }: KnowledgeGraphViewerProps) {
+export function KnowledgeGraphViewer({ data, projectKind }: KnowledgeGraphViewerProps) {
   return (
     <ReactFlowProvider>
-      <GraphInner data={data} />
+      <GraphInner data={data} projectKind={projectKind} />
     </ReactFlowProvider>
   );
 }

@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
+import { computeReadableFitScale } from "@/lib/mermaidFitScale";
 import {
   Upload,
   FileCode2,
@@ -287,8 +288,13 @@ function DiagramFullscreenViewer({ svgHtml, title, onClose }: { svgHtml: string;
 
   const resetView = useCallback(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, []);
   const fitToScreen = useCallback(() => {
-    if (contentSize.w > 0 && contentSize.h > 0 && viewportSize.w > 0) {
-      const fitScale = Math.min(viewportSize.w / contentSize.w, viewportSize.h / contentSize.h) * 0.92;
+    if (contentSize.w > 0 && contentSize.h > 0 && viewportSize.w > 0 && viewportSize.h > 0) {
+      const fitScale = computeReadableFitScale(
+        viewportSize.w,
+        viewportSize.h,
+        contentSize.w,
+        contentSize.h,
+      );
       setScale(fitScale);
       setTranslate({ x: 0, y: 0 });
     }

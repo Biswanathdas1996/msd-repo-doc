@@ -33,8 +33,8 @@ logger = logging.getLogger("upload")
 from backend.models.schemas import (
     Solution, SolutionSummary, SolutionMetadata, SolutionStatus,
     KnowledgeGraph, Entity, Workflow, Plugin, Role, WebResource, FunctionalFlow,
-    GeneratedDocs, GenerateDocsRequest, VerificationResult,
-    GitHubImportRequest
+    GeneratedDocs, GenerateDocsRequest, GenerateInsightRequest, VerificationResult,
+    GitHubImportRequest, SolutionChatRequest, SolutionChatResponse,
 )
 from backend.services.extractor import extract_solution
 from backend.services.github_downloader import download_github_repo
@@ -48,9 +48,19 @@ from backend.services.xml_parser import (
     parse_customizations_xml, parse_xaml_workflow_file
 )
 from backend.services.source_code_parser import parse_source_code_repo
+from backend.services.generic_project_parser import parse_generic_project
 from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
-from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS, enrich_knowledge_graph_with_llm
+from backend.services.ai_reasoning import (
+    generate_documentation,
+    generate_single_section,
+    verify_documentation,
+    SECTION_CONFIGS,
+    enrich_knowledge_graph_with_llm,
+    generate_solution_insight,
+    answer_solution_chat,
+    SOLUTION_INSIGHT_KEYS,
+)
 from backend.services.doc_exporter import export_to_docx, export_to_pdf
 from backend.services.claude_analyzer import run_advanced_analysis, regenerate_technical_specs
 
@@ -120,7 +130,7 @@ UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "data", "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
-def _process_solution(zip_path: str, solution_name: str) -> Solution:
+def _process_solution(zip_path: str, solution_name: str, process_mode: str = "auto") -> Solution:
     try:
         result = extract_solution(zip_path, SOLUTIONS_DIR)
     except ValueError as e:
@@ -135,18 +145,24 @@ def _process_solution(zip_path: str, solution_name: str) -> Solution:
         os.unlink(zip_path)
 
     try:
-        return _build_solution_data(result, solution_name)
+        return _build_solution_data(result, solution_name, process_mode=process_mode)
     except Exception:
         if saved_zip and os.path.exists(saved_zip):
             os.unlink(saved_zip)
         raise
 
 
-def _build_solution_data(result: dict, solution_name: str, override_id: str | None = None) -> Solution:
+def _build_solution_data(
+    result: dict,
+    solution_name: str,
+    override_id: str | None = None,
+    process_mode: str = "auto",
+) -> Solution:
     sol_id = override_id or result["id"]
     final_name = solution_name or f"Solution {sol_id}"
     structure = result["structure"]
     is_source_code = result.get("is_source_code", False)
+    generic_mode = process_mode == "generic"
 
     sol_metadata = parse_solution_xml(structure.get("solution_xml", ""))
 
@@ -162,7 +178,13 @@ def _build_solution_data(result: dict, solution_name: str, override_id: str | No
     ax_report_data: list[dict] = []
     ax_query_data: list[dict] = []
 
-    if is_source_code:
+    if generic_mode:
+        gp = parse_generic_project(result["output_folder"])
+        entities = gp["entities"]
+        workflows = gp["workflows"]
+        plugins = gp["plugins"]
+        sol_metadata = gp["metadata"]
+    elif is_source_code:
         sc_result = parse_source_code_repo(result["output_folder"])
         entities = sc_result["entities"]
         workflows = sc_result["workflows"]
@@ -288,7 +310,7 @@ def _build_solution_data(result: dict, solution_name: str, override_id: str | No
 
     # --- Parse unclassified XML (other_xml) through fallback parser ---
     other_xml_files = structure.get("other_xml", [])
-    if other_xml_files:
+    if other_xml_files and not generic_mode:
         extra_entities, extra_workflows, extra_plugins = parse_other_xml_files(other_xml_files)
         entities.extend(extra_entities)
         workflows.extend(extra_workflows)
@@ -315,15 +337,16 @@ def _build_solution_data(result: dict, solution_name: str, override_id: str | No
         ax_query_data=ax_query_data if structure.get("is_ax_fo") else None,
     )
 
-    # --- LLM enrichment: discover deeper relationships ---
-    try:
-        knowledge_graph = enrich_knowledge_graph_with_llm(
-            knowledge_graph,
-            ax_classes_data=ax_classes_data if structure.get("is_ax_fo") else None,
-            ax_report_data=ax_report_data if structure.get("is_ax_fo") else None,
-        )
-    except Exception:
-        pass  # LLM enrichment is best-effort; heuristic graph still usable
+    # --- LLM enrichment: discover deeper relationships (skipped for generic repos) ---
+    if not generic_mode:
+        try:
+            knowledge_graph = enrich_knowledge_graph_with_llm(
+                knowledge_graph,
+                ax_classes_data=ax_classes_data if structure.get("is_ax_fo") else None,
+                ax_report_data=ax_report_data if structure.get("is_ax_fo") else None,
+            )
+        except Exception:
+            pass  # LLM enrichment is best-effort; heuristic graph still usable
 
     functional_flows = generate_functional_flows(knowledge_graph)
 
@@ -371,7 +394,12 @@ def _build_solution_data(result: dict, solution_name: str, override_id: str | No
     )
 
 
-def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str):
+def _background_process_solution(
+    tmp_path: str,
+    solution_name: str,
+    sol_id: str,
+    process_mode: str = "auto",
+):
     """Run heavy extraction + parsing in a background thread so the upload
     response returns immediately after the file has been streamed to disk."""
     try:
@@ -392,7 +420,9 @@ def _background_process_solution(tmp_path: str, solution_name: str, sol_id: str)
             if os.path.exists(old_meta):
                 os.unlink(old_meta)
 
-        sol_data = _build_solution_data(result, solution_name, override_id=sol_id)
+        sol_data = _build_solution_data(
+            result, solution_name, override_id=sol_id, process_mode=process_mode
+        )
         logger.info("Background processing complete for %s", sol_id)
     except Exception:
         logger.error("Background processing failed for %s:\n%s", sol_id, traceback.format_exc())
@@ -425,6 +455,9 @@ async def chunked_upload_init(
     total_size = body.get("totalSize", 0)
     total_chunks = body.get("totalChunks", 0)
     name = body.get("name", "")
+    process_mode = body.get("processMode", "auto")
+    if process_mode not in ("auto", "generic"):
+        process_mode = "auto"
 
     if not filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
@@ -452,6 +485,7 @@ async def chunked_upload_init(
         "received_set": set(),
         "bytes_written": 0,
         "last_activity": time.time(),
+        "process_mode": process_mode,
     }
 
     return {"uploadId": upload_id}
@@ -532,6 +566,9 @@ async def chunked_upload_finalize(
 
     solution_name = name_override or info["name"] or info["filename"] or ""
     sol_id = hashlib.md5(f"{solution_name}-{time.time()}".encode()).hexdigest()[:8]
+    process_mode = info.get("process_mode", "auto")
+    if process_mode not in ("auto", "generic"):
+        process_mode = "auto"
 
     placeholder = {
         "id": sol_id,
@@ -557,6 +594,7 @@ async def chunked_upload_finalize(
         tmp_path,
         solution_name,
         sol_id,
+        process_mode,
     )
 
     return SolutionSummary(
@@ -575,7 +613,8 @@ async def chunked_upload_finalize(
 async def upload_solution(
     request: Request,
     file: UploadFile = File(...),
-    name: str = Form(default="")
+    name: str = Form(default=""),
+    processMode: str = Form(default="auto"),
 ):
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Please upload a ZIP file")
@@ -615,6 +654,7 @@ async def upload_solution(
 
     solution_name = name or file.filename or ""
     sol_id = hashlib.md5(f"{solution_name}-{time.time()}".encode()).hexdigest()[:8]
+    pm = processMode if processMode in ("auto", "generic") else "auto"
 
     placeholder = {
         "id": sol_id,
@@ -640,6 +680,7 @@ async def upload_solution(
         tmp_path,
         solution_name,
         sol_id,
+        pm,
     )
 
     return SolutionSummary(
@@ -665,13 +706,22 @@ async def import_from_github(body: GitHubImportRequest):
 
     repo_name = body.url.rstrip("/").split("/")[-1].replace(".git", "")
     solution_name = body.name or repo_name
-    return _process_solution(zip_path, solution_name)
+    pm = body.processMode if body.processMode in ("auto", "generic") else "auto"
+    return _process_solution(zip_path, solution_name, process_mode=pm)
 
 
 @app.get("/solutions")
-def list_solutions():
+def list_solutions(projectKind: str | None = None):
     summaries = []
     for sol_id, data in solutions_store.items():
+        meta = data.get("metadata") or {}
+        mtype = meta.get("type")
+        if projectKind == "generic":
+            if mtype != "generic_code":
+                continue
+        elif projectKind == "dynamics":
+            if mtype == "generic_code":
+                continue
         summaries.append(SolutionSummary(
             id=data["id"],
             name=data["name"],
@@ -753,7 +803,9 @@ def reprocess_solution(sol_id: str):
     if not output_folder or not os.path.exists(output_folder):
         raise HTTPException(status_code=400, detail="Solution source files not found on disk")
 
-    is_source_code = data.get("metadata", {}).get("type") == "source_code"
+    meta_type = (data.get("metadata") or {}).get("type")
+    is_source_code = meta_type == "source_code"
+    is_generic = meta_type == "generic_code"
     entities: list[Entity] = []
     workflows: list[Workflow] = []
     plugins: list[Plugin] = []
@@ -761,7 +813,12 @@ def reprocess_solution(sol_id: str):
     webresources: list[WebResource] = []
     forms: list[str] = data.get("forms", [])
 
-    if is_source_code:
+    if is_generic:
+        gp = parse_generic_project(output_folder)
+        entities = gp["entities"]
+        workflows = gp["workflows"]
+        plugins = gp["plugins"]
+    elif is_source_code:
         sc_result = parse_source_code_repo(output_folder)
         entities = sc_result["entities"]
         workflows = sc_result["workflows"]
@@ -909,6 +966,82 @@ def generate_section(sol_id: str, section_key: str):
     _save_solution_metadata(sol_id, data)
 
     return section
+
+
+@app.get("/solutions/{sol_id}/insights")
+def get_solution_insights(sol_id: str):
+    """Cached PwC Gen AI outputs for Features, Feature connections, and Flow diagrams."""
+    data = _get_solution_or_404(sol_id)
+    return data.get("solution_insights") or {}
+
+
+@app.post("/solutions/{sol_id}/insights/generate")
+def generate_solution_insight_endpoint(sol_id: str, body: GenerateInsightRequest):
+    key = (body.insightType or "").strip()
+    if key not in SOLUTION_INSIGHT_KEYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown insight type: {key!r}. Use one of: {list(SOLUTION_INSIGHT_KEYS)}",
+        )
+    data = _get_solution_or_404(sol_id)
+    kg = KnowledgeGraph(**data.get("knowledge_graph", {}))
+    flows = data.get("functional_flows") or []
+
+    try:
+        content = generate_solution_insight(key, kg, flows)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    insights = dict(data.get("solution_insights") or {})
+    insights[key] = {
+        "content": content,
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    data["solution_insights"] = insights
+    solutions_store[sol_id] = data
+    _save_solution_metadata(sol_id, data)
+    return insights[key]
+
+
+@app.post("/solutions/{sol_id}/chat", response_model=SolutionChatResponse)
+def solution_project_chat(sol_id: str, body: SolutionChatRequest):
+    """Answer questions using only this solution's parsed graph, flows, and generated docs/insights."""
+    data = _get_solution_or_404(sol_id)
+    if data.get("status") != "ready":
+        raise HTTPException(
+            status_code=400,
+            detail="Solution is not ready yet. Wait for parsing to finish.",
+        )
+    kg = KnowledgeGraph(**data.get("knowledge_graph", {}))
+    flows = data.get("functional_flows") or []
+    docs_raw = data.get("docs")
+    insights = data.get("solution_insights")
+    meta = data.get("metadata") or {}
+    if hasattr(meta, "model_dump"):
+        meta = meta.model_dump()
+
+    history: list[dict] = []
+    for m in body.history[-12:]:
+        r = (m.role or "").strip().lower()
+        if r not in ("user", "assistant"):
+            continue
+        history.append({"role": r, "content": (m.content or "")[:6000]})
+
+    try:
+        answer = answer_solution_chat(
+            kg,
+            flows,
+            body.message.strip(),
+            history,
+            solution_name=data.get("name") or "",
+            metadata=meta if isinstance(meta, dict) else {},
+            docs=docs_raw,
+            solution_insights=insights if isinstance(insights, dict) else {},
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    return SolutionChatResponse(answer=answer)
 
 
 @app.get("/solutions/{sol_id}/docs")

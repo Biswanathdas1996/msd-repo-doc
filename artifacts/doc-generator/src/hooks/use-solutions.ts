@@ -1,6 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useListSolutions,
+  getListSolutionsQueryKey,
+  listSolutions,
   useGetSolution,
   useUploadSolution,
   useImportFromGithub,
@@ -15,11 +16,12 @@ import {
   useVerifyDocs,
 } from "@workspace/api-client-react";
 
-export function useSolutions() {
-  return useListSolutions({
-    query: {
-      refetchInterval: 10000,
-    }
+export function useSolutions(projectKind?: "dynamics" | "generic") {
+  const params = projectKind ? { projectKind } : undefined;
+  return useQuery({
+    queryKey: getListSolutionsQueryKey(params),
+    queryFn: ({ signal }) => listSolutions(params, { signal }),
+    refetchInterval: 10000,
   });
 }
 
@@ -41,7 +43,10 @@ export function useUpload() {
   return useUploadSolution({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) && q.queryKey[0] === "/api/py-api/solutions",
+        });
       },
     },
   });
@@ -52,7 +57,10 @@ export function useGitHubImport() {
   return useImportFromGithub({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) && q.queryKey[0] === "/api/py-api/solutions",
+        });
       },
     },
   });
@@ -63,7 +71,10 @@ export function useDelete() {
   return useDeleteSolution({
     mutation: {
       onSuccess: (_, variables) => {
-        queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) && q.queryKey[0] === "/api/py-api/solutions",
+        });
         queryClient.removeQueries({ queryKey: [`/api/py-api/solutions/${variables.id}`] });
       },
     },
@@ -101,7 +112,10 @@ export function useGenerateDocumentation() {
       onSuccess: (_, variables) => {
         queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${variables.id}/docs`] });
         queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${variables.id}`] });
-        queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) && q.queryKey[0] === "/api/py-api/solutions",
+        });
       },
     },
   });

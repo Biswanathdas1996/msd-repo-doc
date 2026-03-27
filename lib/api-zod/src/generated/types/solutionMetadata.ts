@@ -13,4 +13,14 @@ export interface SolutionMetadata {
   publisher?: string | null;
   /** @nullable */
   description?: string | null;
+  /**
+   * Artefact kind (e.g. generic_code, source_code, ax_fo)
+   * @nullable
+   */
+  type?: string | null;
+  /**
+   * generic vs dynamics-oriented processing
+   * @nullable
+   */
+  projectKind?: string | null;
 }

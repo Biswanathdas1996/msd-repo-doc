@@ -2,12 +2,10 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  Settings,
-  Database,
   Cpu,
-  FileText,
   Boxes,
   Sparkles,
+  Braces,
 } from "lucide-react";
 
 interface LayoutProps {
@@ -18,7 +16,8 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/", label: "Dynamics solutions", icon: LayoutDashboard },
+    { href: "/other-projects", label: "Other projects", icon: Braces },
     { href: "/advanced-docs", label: "Advanced Docs", icon: Sparkles },
   ];
 

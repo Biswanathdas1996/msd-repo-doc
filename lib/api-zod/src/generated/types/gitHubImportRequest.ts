@@ -5,10 +5,13 @@
  * AI Documentation Generator API
  * OpenAPI spec version: 0.1.0
  */
+import type { GitHubImportRequestProcessMode } from "./gitHubImportRequestProcessMode";
 
 export interface GitHubImportRequest {
   /** GitHub repository URL */
   url: string;
   /** Optional display name for the solution */
   name?: string;
+  /** generic = index as non-Dynamics source tree for PwC Gen AI docs; auto = detect Dynamics solution vs C# plugin repo */
+  processMode?: GitHubImportRequestProcessMode;
 }

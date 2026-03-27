@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import type { GitHubImportRequest } from "@workspace/api-client-react";
 import { useGitHubImport } from "@/hooks/use-solutions";
 import { UploadCloud, X, FileArchive, Loader2, AlertCircle, Github, Link } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +9,8 @@ import { useQueryClient } from "@tanstack/react-query";
 interface UploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** generic = force non-Dynamics source indexing for PwC Gen AI pipeline */
+  processMode?: "auto" | "generic";
 }
 
 type SourceMode = "zip" | "github";
@@ -19,7 +22,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
+export function UploadDialog({ open, onOpenChange, processMode = "auto" }: UploadDialogProps) {
   const [mode, setMode] = useState<SourceMode>("zip");
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
@@ -59,7 +62,10 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       } else {
         toast({
           title: "Invalid file type",
-          description: "Please upload a Dynamics Solution .zip file.",
+          description:
+            processMode === "generic"
+              ? "Please upload a project .zip archive."
+              : "Please upload a Dynamics Solution .zip file.",
           variant: "destructive"
         });
       }
@@ -113,6 +119,7 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
           totalSize,
           totalChunks,
           name: solutionName,
+          processMode,
         }),
         signal: abortController.signal,
       });
@@ -178,7 +185,10 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       abortControllerRef.current = null;
       setIsUploading(false);
       setUploadProgress(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/py-api/solutions"] });
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey[0] === "/api/py-api/solutions",
+      });
       toast({ title: "Upload complete", description: "Solution is now being parsed and processed." });
       handleClose();
     } catch (err: any) {
@@ -205,8 +215,13 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
       uploadWithProgress(file, name || file.name);
     } else {
       if (!githubUrl.trim()) return;
+      const body: GitHubImportRequest = {
+        url: githubUrl.trim(),
+        name: name || "",
+        processMode,
+      };
       githubMutation.mutate(
-        { data: { url: githubUrl.trim(), name: name || "" } },
+        { data: body },
         {
           onSuccess: () => {
             toast({ title: "Import started", description: "GitHub repository is being downloaded and processed." });
@@ -226,7 +241,9 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-6 border-b border-border/50">
-          <h2 className="text-xl font-display font-semibold">Import Solution</h2>
+          <h2 className="text-xl font-display font-semibold">
+            {processMode === "generic" ? "Import project" : "Import Solution"}
+          </h2>
           <button 
             onClick={handleClose}
             className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
@@ -322,7 +339,11 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
                     </div>
                     <div>
                       <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                      <p className="text-sm text-muted-foreground mt-1">Dynamics Solution ZIP files (up to 10 GB)</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {processMode === "generic"
+                          ? "Project source ZIP (Python, TypeScript, Java, Go, etc.) — up to 10 GB"
+                          : "Dynamics Solution ZIP files (up to 10 GB)"}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -375,10 +396,13 @@ export function UploadDialog({ open, onOpenChange }: UploadDialogProps) {
           <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
             <p>
-              {mode === "zip" 
-                ? "The solution will be unpacked, parsed, and converted into a Knowledge Graph automatically."
-                : "The repository will be downloaded, scanned for Dynamics solution files, and converted into a Knowledge Graph."
-              }
+              {processMode === "generic"
+                ? mode === "zip"
+                  ? "Files are indexed into a knowledge graph; PwC Gen AI then generates the same structured documentation as Dynamics projects."
+                  : "The repository is downloaded and indexed for PwC Gen AI documentation (non-Dynamics pipeline)."
+                : mode === "zip"
+                  ? "The solution will be unpacked, parsed, and converted into a Knowledge Graph automatically."
+                  : "The repository will be downloaded, scanned for Dynamics solution files, and converted into a Knowledge Graph."}
             </p>
           </div>
         </div>

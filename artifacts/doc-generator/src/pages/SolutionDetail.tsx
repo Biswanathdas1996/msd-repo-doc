@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { 
   useSolutionDetails, 
@@ -17,11 +17,12 @@ import { format } from "date-fns";
 import { 
   ArrowLeft, Database, Zap, Settings, Share2, FileText, 
   CheckCircle2, AlertTriangle, Loader2, Sparkles, RefreshCcw, FileSearch,
-  Download, Play, CheckCheck
+  Download, Play, CheckCheck, ListChecks, Link2, Waypoints, MessageSquare, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // All 15 documentation sections across 7 groups
 const ALL_DOC_SECTIONS = [
@@ -48,8 +49,19 @@ const TABS = [
   { id: 'entities', label: 'Entities', icon: Database },
   { id: 'workflows', label: 'Workflows', icon: Zap },
   { id: 'plugins', label: 'Plugins', icon: Settings },
+  { id: 'features', label: 'Features', icon: ListChecks },
+  { id: 'feature_connections', label: 'Feature connections', icon: Link2 },
+  { id: 'flow_diagram', label: 'Flow diagrams', icon: Waypoints },
   { id: 'docs', label: 'AI Documentation', icon: FileText },
-];
+  { id: 'chat', label: 'Project Q&A', icon: MessageSquare },
+] as const;
+
+const INSIGHT_TAB_IDS = new Set<string>(["features", "feature_connections", "flow_diagram"]);
+
+type InsightEntry = { content?: string; generatedAt?: string };
+type InsightsState = Record<string, InsightEntry | undefined>;
+
+type ChatTurn = { role: "user" | "assistant"; content: string };
 
 export default function SolutionDetail() {
   const [, params] = useRoute("/solutions/:id");
@@ -65,10 +77,86 @@ export default function SolutionDetail() {
   const { data: plugins } = usePlugins(id, activeTab === 'plugins');
   const { data: flows } = useFunctionalFlows(id, activeTab === 'overview');
   const { data: docs, isLoading: isLoadingDocs } = useDocs(id, activeTab === 'docs');
+
+  const queryClient = useQueryClient();
+
+  const insightsEnabled = INSIGHT_TAB_IDS.has(activeTab);
+  const { data: insights, isLoading: isLoadingInsights } = useQuery({
+    queryKey: [`/api/py-api/solutions/${id}/insights`],
+    queryFn: async (): Promise<InsightsState> => {
+      const r = await fetch(`/api/py-api/solutions/${id}/insights`);
+      if (!r.ok) return {};
+      return r.json();
+    },
+    enabled: !!id && insightsEnabled,
+  });
+
+  const [chatMessages, setChatMessages] = useState<ChatTurn[]>([]);
+  const [chatInput, setChatInput] = useState("");
+
+  useEffect(() => {
+    setChatMessages([]);
+    setChatInput("");
+  }, [id]);
+
+  const chatMutation = useMutation({
+    mutationFn: async (payload: { message: string; history: ChatTurn[] }) => {
+      const r = await fetch(`/api/py-api/solutions/${id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: payload.message,
+          history: payload.history.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: "Request failed" }));
+        const d = err.detail;
+        throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map((x: { msg?: string }) => x.msg).join(", ") : "Request failed");
+      }
+      return r.json() as { answer: string };
+    },
+  });
+
+  const handleSendChat = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || !id || solution?.status !== "ready" || chatMutation.isPending) return;
+    const historySnapshot = chatMessages;
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", content: text }]);
+    try {
+      const data = await chatMutation.mutateAsync({ message: text, history: historySnapshot });
+      setChatMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `**Could not get an answer.** ${msg}` },
+      ]);
+      toast({ title: "Q&A failed", description: msg, variant: "destructive" });
+    }
+  }, [chatInput, id, solution?.status, chatMessages, chatMutation, toast]);
+
+  const insightGenerateMutation = useMutation({
+    mutationFn: async (insightType: string) => {
+      const r = await fetch(`/api/py-api/solutions/${id}/insights/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ insightType: insightType }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: "Generation failed" }));
+        throw new Error(err.detail || "Generation failed");
+      }
+      return r.json() as InsightEntry;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/py-api/solutions/${id}/insights`] });
+    },
+  });
   
   const generateMutation = useGenerateDocumentation();
   const verifyMutation = useVerifyDocumentation();
-  const queryClient = useQueryClient();
 
   const [selectedSections, setSelectedSections] = useState<string[]>(
     ALL_DOC_SECTIONS.map(s => s.key)
@@ -188,6 +276,84 @@ export default function SolutionDetail() {
     });
   };
 
+  const renderGenAiInsightPanel = (
+    tabId: "features" | "feature_connections" | "flow_diagram",
+    heading: string,
+    description: string,
+  ) => {
+    const entry = insights?.[tabId];
+    const pendingKey = insightGenerateMutation.variables as string | undefined;
+    const busy = insightGenerateMutation.isPending && pendingKey === tabId;
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 bg-card border border-border rounded-xl p-6">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              {heading}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-2xl">{description}</p>
+            {entry?.generatedAt && (
+              <p className="text-xs text-muted-foreground pt-1">
+                Last generated {format(new Date(entry.generatedAt), "PPp")}
+              </p>
+            )}
+          </div>
+          <Button
+            onClick={() => {
+              insightGenerateMutation.mutate(tabId, {
+                onError: (err: Error) =>
+                  toast({
+                    title: "Generation failed",
+                    description: err.message,
+                    variant: "destructive",
+                  }),
+                onSuccess: () =>
+                  toast({
+                    title: "Insight ready",
+                    description: `${heading} was generated with PwC Gen AI.`,
+                  }),
+              });
+            }}
+            disabled={busy || solution.status !== "ready"}
+            className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate with Gen AI
+              </>
+            )}
+          </Button>
+        </div>
+
+        {isLoadingInsights ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : entry?.content ? (
+          <div className="bg-card border border-border rounded-xl p-6 sm:p-8 min-h-[200px] min-w-0 max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-auto">
+            <MarkdownViewer content={entry.content} />
+          </div>
+        ) : (
+          <div className="border border-dashed border-border rounded-xl p-12 text-center text-muted-foreground max-w-xl mx-auto">
+            <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p>
+              No content yet. Choose <strong>Generate with Gen AI</strong> to produce this view from the
+              knowledge graph and functional flows using <strong>PwC Gen AI</strong>.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -263,7 +429,12 @@ export default function SolutionDetail() {
       case 'graph':
         return (
           <div className="h-[700px] animate-in slide-in-from-bottom-4 duration-500">
-            {graph ? <KnowledgeGraphViewer data={graph} /> : (
+            {graph ? (
+              <KnowledgeGraphViewer
+                data={graph}
+                projectKind={solution?.metadata?.projectKind ?? undefined}
+              />
+            ) : (
               <div className="flex items-center justify-center h-full border border-dashed rounded-xl border-border bg-card/50">
                 <p className="text-muted-foreground">Loading Knowledge Graph...</p>
               </div>
@@ -352,6 +523,136 @@ export default function SolutionDetail() {
                 </div>
               </div>
             ))}
+          </div>
+        );
+
+      case "features":
+        return renderGenAiInsightPanel(
+          "features",
+          "Feature list",
+          "A structured list of capabilities inferred from entities, workflows, plugins, forms, and relationships in the knowledge graph. Generated on demand with PwC Gen AI.",
+        );
+
+      case "feature_connections":
+        return renderGenAiInsightPanel(
+          "feature_connections",
+          "How features connect",
+          "Explains cross-feature links using graph relationships and detected functional flows, including an optional Mermaid map. Generated with PwC Gen AI.",
+        );
+
+      case "flow_diagram":
+        return renderGenAiInsightPanel(
+          "flow_diagram",
+          "Detailed flow diagrams",
+          "Narrative plus detailed Mermaid flowcharts for major paths through the solution. Optimized for end-to-end visualization. Generated with PwC Gen AI.",
+        );
+
+      case "chat":
+        return (
+          <div className="flex flex-col gap-4 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto w-full min-h-[min(70vh,640px)]">
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 flex flex-col flex-1 min-h-[480px]">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-foreground">Project Q&A</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Short, business-relevant answers tied to concrete components (entities, workflows, plugins) from this
+                    upload only — no web or other projects.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto rounded-lg border border-border/60 bg-muted/20 min-h-[280px] max-h-[min(52vh,520px)] p-4 space-y-4">
+                {chatMessages.length === 0 && !chatMutation.isPending ? (
+                  <p className="text-sm text-muted-foreground text-center py-12 px-4">
+                    Ask something specific about{" "}
+                    <span className="text-foreground font-medium">{solution.name}</span>
+                    — e.g. which workflows or plugins involve an entity, or how parts connect in the graph.
+                  </p>
+                ) : null}
+                {chatMessages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[92%] rounded-xl px-4 py-3 text-sm ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-card border border-border text-foreground"
+                      }`}
+                    >
+                      {m.role === "assistant" ? (
+                        <div className="min-w-0 text-left">
+                          <MarkdownViewer content={m.content} />
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {chatMutation.isPending ? (
+                  <div className="flex justify-start">
+                    <div className="rounded-xl px-4 py-3 bg-card border border-border flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Answering from project data…
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <Textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={
+                    solution.status === "ready"
+                      ? "Ask a question about this project…"
+                      : "Available when parsing is complete."
+                  }
+                  disabled={solution.status !== "ready" || chatMutation.isPending}
+                  className="min-h-[100px] resize-y bg-background"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (chatInput.trim() && solution.status === "ready" && !chatMutation.isPending) {
+                        void handleSendChat();
+                      }
+                    }
+                  }}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={chatMessages.length === 0 || chatMutation.isPending}
+                    onClick={() => setChatMessages([])}
+                  >
+                    Clear thread
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={
+                      solution.status !== "ready" || chatMutation.isPending || !chatInput.trim()
+                    }
+                    onClick={() => void handleSendChat()}
+                  >
+                    {chatMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Send
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         );
 
@@ -605,29 +906,37 @@ export default function SolutionDetail() {
         </div>
       </div>
 
-      <div className="border-b border-border">
-        <div className="flex overflow-x-auto no-scrollbar gap-6">
-          {TABS.map(tab => {
+      <div className="rounded-2xl border border-border/80 bg-muted/40 p-2 sm:p-3 backdrop-blur-sm">
+        <nav
+          className="flex flex-wrap gap-2"
+          aria-label="Solution sections"
+        >
+          {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`
-                  flex items-center gap-2 py-3 border-b-2 transition-colors whitespace-nowrap
-                  ${isActive 
-                    ? 'border-primary text-primary font-medium' 
-                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                  inline-flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-sm transition-all duration-200
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                  ${isActive
+                    ? "bg-background font-medium text-foreground shadow-sm ring-1 ring-border/70"
+                    : "text-muted-foreground hover:bg-background/70 hover:text-foreground active:scale-[0.98]"
                   }
                 `}
               >
-                <Icon className="w-4 h-4" />
-                {tab.label}
+                <Icon
+                  className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : "opacity-80"}`}
+                  aria-hidden
+                />
+                <span className="leading-tight">{tab.label}</span>
               </button>
-            )
+            );
           })}
-        </div>
+        </nav>
       </div>
 
       <div className="flex-1 overflow-y-auto">
