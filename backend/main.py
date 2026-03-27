@@ -52,7 +52,7 @@ from backend.services.knowledge_graph import build_knowledge_graph
 from backend.services.flow_generator import generate_functional_flows
 from backend.services.ai_reasoning import generate_documentation, generate_single_section, verify_documentation, SECTION_CONFIGS, enrich_knowledge_graph_with_llm
 from backend.services.doc_exporter import export_to_docx, export_to_pdf
-from backend.services.claude_analyzer import run_advanced_analysis
+from backend.services.claude_analyzer import run_advanced_analysis, regenerate_technical_specs
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -1006,6 +1006,9 @@ class _SSEStore:
 _sse_stores: dict[str, _SSEStore] = {}
 _SSE_STORE_TTL = 600  # clean up stores 10 min after done
 
+# One in-flight partial regeneration per advanced-doc (e.g. technical_specs only)
+_advanced_section_jobs: dict[str, str] = {}
+
 
 def _cleanup_old_sse_stores():
     stale = [k for k, v in _sse_stores.items() if v.done]
@@ -1015,6 +1018,18 @@ def _cleanup_old_sse_stores():
 
 # ── Persistence helpers ───────────────────────────────────────────────────────
 
+def _sanitize_advanced_doc_section_jobs(data: dict) -> None:
+    """In-memory section jobs cannot survive a restart; stale 'running' blocks the UI."""
+    sj = data.get("section_jobs")
+    if not isinstance(sj, dict):
+        return
+    if sj.get("technical_specs") == "running":
+        sj.pop("technical_specs", None)
+        sj.pop("technical_specs_started_at", None)
+        if not sj:
+            data.pop("section_jobs", None)
+
+
 def _load_advanced_docs():
     if not os.path.exists(ADVANCED_DOCS_METADATA_DIR):
         return
@@ -1023,6 +1038,7 @@ def _load_advanced_docs():
             try:
                 with open(os.path.join(ADVANCED_DOCS_METADATA_DIR, fname)) as f:
                     data = json.load(f)
+                    _sanitize_advanced_doc_section_jobs(data)
                     advanced_docs_store[data["id"]] = data
             except Exception:
                 pass
@@ -1079,6 +1095,48 @@ def _background_advanced_analysis(zip_path: str, project_name: str, doc_id: str)
                 os.unlink(zip_path)
             except OSError:
                 pass
+
+
+def _background_regen_technical_specs(doc_id: str):
+    logger.info("Technical specs regeneration thread started for %s", doc_id)
+    try:
+        doc = advanced_docs_store.get(doc_id)
+        if not doc:
+            logger.warning("Technical specs regen: doc %s gone from store", doc_id)
+            return
+        specs = regenerate_technical_specs(doc)
+        doc = advanced_docs_store.get(doc_id)
+        if not doc:
+            return
+        doc["technical_specs"] = specs
+        doc.setdefault("step_errors", {}).pop("technical_specs", None)
+        completed = doc.setdefault("completed_steps", [])
+        if "technical_specs" not in completed:
+            completed.append("technical_specs")
+        logger.info("Technical specs regenerated for advanced doc %s", doc_id)
+    except ValueError as e:
+        logger.warning("Technical specs regeneration failed for %s: %s", doc_id, e)
+        doc = advanced_docs_store.get(doc_id)
+        if doc:
+            doc.setdefault("step_errors", {})["technical_specs"] = str(e)
+    except Exception:
+        logger.error("Technical specs regeneration failed for %s:\n%s", doc_id, traceback.format_exc())
+        doc = advanced_docs_store.get(doc_id)
+        if doc:
+            doc.setdefault("step_errors", {})["technical_specs"] = traceback.format_exc()
+    finally:
+        _advanced_section_jobs.pop(doc_id, None)
+        doc = advanced_docs_store.get(doc_id)
+        if doc:
+            sj = doc.setdefault("section_jobs", {})
+            sj.pop("technical_specs", None)
+            sj.pop("technical_specs_started_at", None)
+            if not sj:
+                doc.pop("section_jobs", None)
+            try:
+                _save_advanced_doc(doc_id, doc)
+            except Exception:
+                logger.exception("Failed to persist advanced doc %s after technical specs regen", doc_id)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -1351,6 +1409,42 @@ def get_advanced_doc(doc_id: str):
     if doc_id not in advanced_docs_store:
         raise HTTPException(status_code=404, detail="Advanced doc project not found")
     return advanced_docs_store[doc_id]
+
+
+@app.post("/advanced-docs/{doc_id}/regenerate/technical-specs")
+async def regenerate_advanced_technical_specs(doc_id: str):
+    """Re-run only the technical specifications step (Claude CLI). Runs in a thread; poll GET for results."""
+    if doc_id not in advanced_docs_store:
+        raise HTTPException(status_code=404, detail="Advanced doc project not found")
+    if _advanced_section_jobs.get(doc_id):
+        raise HTTPException(
+            status_code=409,
+            detail="A section regeneration is already running for this project.",
+        )
+
+    doc = advanced_docs_store[doc_id]
+    if doc.get("status") == "processing":
+        raise HTTPException(
+            status_code=409,
+            detail="Full analysis is still running; wait for it to finish.",
+        )
+
+    folder = doc.get("output_folder")
+    if not folder or not os.path.isdir(folder):
+        raise HTTPException(
+            status_code=400,
+            detail="Extracted project folder is missing. Re-upload the ZIP.",
+        )
+
+    _advanced_section_jobs[doc_id] = "technical_specs"
+    sj = doc.setdefault("section_jobs", {})
+    sj["technical_specs"] = "running"
+    sj["technical_specs_started_at"] = datetime.now(timezone.utc).isoformat()
+    _save_advanced_doc(doc_id, doc)
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, _background_regen_technical_specs, doc_id)
+    return {"accepted": True, "section": "technical_specs"}
 
 
 @app.get("/advanced-docs/{doc_id}/status")

@@ -6,6 +6,7 @@ import {
   useAdvancedDocStream,
   useDeleteAdvancedDoc,
   useImportAdvancedDoc,
+  useRegenerateAdvancedTechnicalSpecs,
   exportAdvancedDoc,
   type AdvancedDocResult,
   type TechnicalSpecs,
@@ -58,7 +59,49 @@ import {
 
 // ─── Mermaid rendering ───────────────────────────────────────────────────────
 
-mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "dark",
+  securityLevel: "loose",
+  themeVariables: {
+    fontSize: "15px",
+    fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    primaryTextColor: "#fafafa",
+    secondaryTextColor: "#e4e4e7",
+    tertiaryTextColor: "#a1a1aa",
+    lineColor: "#a1a1aa",
+    primaryBorderColor: "#52525b",
+    /* Avoid default light node fills (#ccf, etc.) on flowcharts */
+    primaryColor: "#1e293b",
+    secondaryColor: "#334155",
+    tertiaryColor: "#1e293b",
+    mainBkg: "#0f172a",
+    nodeBorder: "#52525b",
+  },
+});
+
+/** Use viewBox pixel size as width/height so wide ER diagrams are not squashed to 100% (tiny text). */
+function useNativeSvgSizing(svgHtml: string): string {
+  const m = svgHtml.match(
+    /viewBox="\s*([\d.+-]+)\s+([\d.+-]+)\s+([\d.]+)\s+([\d.]+)\s*"/i,
+  );
+  if (!m) return svgHtml;
+  const vw = m[3];
+  const vh = m[4];
+  return svgHtml.replace(/<svg\b([^>]*)>/i, (_full, attrs: string) => {
+    let a = attrs;
+    if (/\bwidth\s*=/i.test(a)) a = a.replace(/\swidth\s*=\s*"[^"]*"/i, ` width="${vw}"`);
+    else a = ` width="${vw}"${a}`;
+    if (/\bheight\s*=/i.test(a)) a = a.replace(/\sheight\s*=\s*"[^"]*"/i, ` height="${vh}"`);
+    else a = ` height="${vh}"${a}`;
+    if (/\bstyle\s*=/i.test(a)) {
+      a = a.replace(/\sstyle\s*=\s*"/i, ' style="max-width:none;');
+    } else {
+      a += ` style="max-width:none"`;
+    }
+    return `<svg${a}>`;
+  });
+}
 
 /**
  * Prepare an export-ready SVG string from the Mermaid-rendered SVG.
@@ -336,7 +379,7 @@ function DiagramFullscreenViewer({ svgHtml, title, onClose }: { svgHtml: string;
           }}
         >
           <div
-            className="[&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
+            className="mermaid-container [&_svg]:max-w-none [&_svg]:max-h-none [&_svg]:drop-shadow-lg"
             dangerouslySetInnerHTML={{ __html: svgHtml }}
           />
         </div>
@@ -361,7 +404,17 @@ function DiagramFullscreenViewer({ svgHtml, title, onClose }: { svgHtml: string;
   );
 }
 
-const MermaidDiagram = memo(({ chart, id }: { chart: string; id: string }) => {
+const MermaidDiagram = memo(
+  ({
+    chart,
+    id,
+    variant = "default",
+  }: {
+    chart: string;
+    id: string;
+    /** `wide`: native SVG pixel size + scroll (readable ERDs); default keeps Mermaid width="100%" fit. */
+    variant?: "default" | "wide";
+  }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
@@ -371,14 +424,17 @@ const MermaidDiagram = memo(({ chart, id }: { chart: string; id: string }) => {
     let cancelled = false;
     (async () => {
       try {
-        const { svg: rendered } = await mermaid.render(`mermaid-${id}`, chart);
+        let { svg: rendered } = await mermaid.render(`mermaid-${id}`, chart);
+        if (variant === "wide") {
+          rendered = useNativeSvgSizing(rendered);
+        }
         if (!cancelled) setSvg(rendered);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to render diagram");
       }
     })();
     return () => { cancelled = true; };
-  }, [chart, id]);
+  }, [chart, id, variant]);
 
   if (error) {
     return (
@@ -417,9 +473,30 @@ const MermaidDiagram = memo(({ chart, id }: { chart: string; id: string }) => {
         </div>
         <div
           ref={ref}
-          className="overflow-auto bg-card/50 rounded-xl p-4 border border-border/50"
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+          className={
+            variant === "wide"
+              ? "overflow-auto max-h-[min(85vh,920px)] min-h-[280px] rounded-xl border-2 border-primary/35 bg-muted/45 p-4 sm:p-5 shadow-inner ring-1 ring-border/60 [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+              : "overflow-auto bg-card/50 rounded-xl p-4 border border-border/50"
+          }
+        >
+          {variant === "wide" && (
+            <p className="text-xs text-muted-foreground mb-3 flex flex-wrap items-center gap-2">
+              <Maximize2 className="w-3.5 h-3.5 shrink-0 text-primary/80" />
+              <span>
+                Diagram shown at full resolution — scroll horizontally and vertically. Open{" "}
+                <strong className="text-foreground/90">Fullscreen</strong> for the clearest view.
+              </span>
+            </p>
+          )}
+          <div
+            className={
+              variant === "wide"
+                ? "mermaid-container inline-block min-w-min rounded-lg bg-background/40 p-2 ring-1 ring-border/40"
+                : "mermaid-container"
+            }
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
       </div>
       {fullscreen && (
         <DiagramFullscreenViewer
@@ -974,6 +1051,28 @@ function FlowsTab({ data }: { data: AdvancedDocResult }) {
 
 // ─── Technical Specs Tab ────────────────────────────────────────────────────
 
+function TechnicalSpecsRegenElapsed({ startedAt }: { startedAt?: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!startedAt) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  if (!startedAt) return null;
+  const t = Date.parse(startedAt);
+  if (Number.isNaN(t)) return null;
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return (
+    <span className="block mt-1 text-xs text-muted-foreground tabular-nums">
+      Elapsed {m > 0 ? `${m}m ` : ""}
+      {s}s. Indexing huge trees can take many minutes before Claude CLI starts; the CLI step can run up to ~30 minutes
+      depending on project scale.
+    </span>
+  );
+}
+
 function SpecSection({ title, icon: Icon, children }: { title: string; icon: typeof Shield; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
@@ -991,25 +1090,120 @@ function SpecSection({ title, icon: Icon, children }: { title: string; icon: typ
   );
 }
 
-function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
+/** LLM output may use objects (e.g. `{ name, file_path }`) where the UI expects strings. */
+function formatSpecScalar(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(formatSpecScalar).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if (typeof o.name === "string" && typeof o.file_path === "string") {
+      return `${o.name} (${o.file_path})`;
+    }
+    if (typeof o.name === "string") return o.name;
+    if (typeof o.file_path === "string") return o.file_path;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function TechnicalSpecsTab({ data, docId }: { data: AdvancedDocResult; docId: string }) {
   const specs = data.technical_specs;
+  const regenSpecs = useRegenerateAdvancedTechnicalSpecs(docId);
+  const regenRunning = data.section_jobs?.technical_specs === "running";
+  const busy = regenRunning || regenSpecs.isPending;
+  const hasFolder = Boolean(data.output_folder);
+  const specErr = data.step_errors?.technical_specs;
+  const regenStartedAt = data.section_jobs?.technical_specs_started_at;
+
+  const regenBtn = (
+    <button
+      type="button"
+      disabled={busy || !hasFolder}
+      title={
+        !hasFolder
+          ? "Only available for projects analyzed from a ZIP upload (extracted files must still be on the server)."
+          : undefined
+      }
+      onClick={() =>
+        regenSpecs.mutate(undefined, {
+          onError: (e: Error) => alert(e.message),
+        })
+      }
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 disabled:opacity-50 disabled:pointer-events-none transition-colors shrink-0"
+    >
+      {busy ? (
+        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+      ) : (
+        <RotateCcw className="w-4 h-4 shrink-0" />
+      )}
+      {busy ? "Regenerating…" : "Regenerate technical specs"}
+    </button>
+  );
 
   if (!specs || Object.keys(specs).length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground">
-        <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
-        <p className="text-lg font-medium">No technical specifications available</p>
-        <p className="text-sm mt-1">This analysis was run before the technical specs feature was added, or the step failed.</p>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="text-sm text-muted-foreground max-w-xl">
+            <p>
+              Technical specs come from a dedicated Claude CLI pass that must return a large JSON object. They are often
+              missing when that step times out, the model wraps JSON in extra text, or this report was imported without an
+              on-disk codebase.
+            </p>
+            {busy && (
+              <p className="mt-2 text-primary text-xs">
+                Regeneration in progress on the server — keep this tab open. Check the Python API console for log lines
+                starting with <code className="text-muted-foreground">regenerate_technical_specs</code>.
+              </p>
+            )}
+            {busy && <TechnicalSpecsRegenElapsed startedAt={regenStartedAt} />}
+          </div>
+          {regenBtn}
+        </div>
+        {specErr && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-left">
+            <p className="text-xs font-semibold text-destructive mb-1">Last error</p>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
+              {specErr}
+            </pre>
+          </div>
+        )}
+        <div className="text-center py-12 text-muted-foreground rounded-xl border border-border/50 border-dashed bg-card/30">
+          <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
+          <p className="text-lg font-medium text-foreground">No technical specifications in this report</p>
+          <p className="text-sm mt-2 max-w-md mx-auto">
+            Use the button above to run only this step again (requires uploaded ZIP data still present on the server).
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-border/40">
+        <div className="text-xs text-muted-foreground max-w-xl">
+          <p>Re-run technical-spec extraction if results were incomplete or the step failed earlier.</p>
+          {busy && (
+            <p className="mt-1 text-primary">
+              Regenerating on the server — this page polls every few seconds. If it never finishes, restart the API (stale
+              jobs are cleared on load) and check logs for <code className="text-muted-foreground">claude</code> errors.
+            </p>
+          )}
+          {busy && <TechnicalSpecsRegenElapsed startedAt={regenStartedAt} />}
+        </div>
+        {regenBtn}
+      </div>
       {specs.scope_definition && (
         <SpecSection title="Scope Definition" icon={Layers}>
           {specs.scope_definition.summary && (
-            <p className="text-sm text-muted-foreground">{specs.scope_definition.summary}</p>
+            <p className="text-sm text-muted-foreground">{formatSpecScalar(specs.scope_definition.summary)}</p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1018,7 +1212,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {(specs.scope_definition.in_scope || []).map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                    <span>{item}</span>
+                    <span>{formatSpecScalar(item)}</span>
                   </li>
                 ))}
               </ul>
@@ -1029,7 +1223,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {(specs.scope_definition.out_of_scope || []).map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <X className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
-                    <span>{item}</span>
+                    <span>{formatSpecScalar(item)}</span>
                   </li>
                 ))}
               </ul>
@@ -1040,18 +1234,18 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
 
       {specs.solution_overview && (
         <SpecSection title="Solution Overview" icon={Sparkles}>
-          <p className="text-sm">{specs.solution_overview.summary}</p>
+          <p className="text-sm">{formatSpecScalar(specs.solution_overview.summary)}</p>
           {specs.solution_overview.deployment_model && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Deployment:</span>
-              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">{specs.solution_overview.deployment_model}</span>
+              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">{formatSpecScalar(specs.solution_overview.deployment_model)}</span>
             </div>
           )}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Tech Stack</h4>
             <div className="flex flex-wrap gap-1.5">
               {(specs.solution_overview.tech_stack || []).map((t, i) => (
-                <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">{t}</span>
+                <span key={i} className="px-2.5 py-1 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">{formatSpecScalar(t)}</span>
               ))}
             </div>
           </div>
@@ -1062,7 +1256,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.solution_overview.key_capabilities.map((c, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <CheckCircle2 className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
-                    <span>{c}</span>
+                    <span>{formatSpecScalar(c)}</span>
                   </li>
                 ))}
               </ul>
@@ -1073,16 +1267,16 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
 
       {specs.high_level_architecture && (
         <SpecSection title="High-Level Architecture" icon={Layers}>
-          <p className="text-sm">{specs.high_level_architecture.description}</p>
+          <p className="text-sm">{formatSpecScalar(specs.high_level_architecture.description)}</p>
           {(specs.high_level_architecture.layers || []).length > 0 && (
             <div className="space-y-3">
               {specs.high_level_architecture.layers.map((layer, i) => (
                 <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
-                  <h4 className="font-semibold text-sm mb-1">{layer.name}</h4>
-                  <p className="text-xs text-muted-foreground mb-2">{layer.description}</p>
+                  <h4 className="font-semibold text-sm mb-1">{formatSpecScalar(layer.name)}</h4>
+                  <p className="text-xs text-muted-foreground mb-2">{formatSpecScalar(layer.description)}</p>
                   <div className="flex flex-wrap gap-1">
                     {(layer.components || []).map((c, j) => (
-                      <span key={j} className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{c}</span>
+                      <span key={j} className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{formatSpecScalar(c)}</span>
                     ))}
                   </div>
                 </div>
@@ -1090,22 +1284,30 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
             </div>
           )}
           {specs.high_level_architecture.mermaid_diagram && (
-            <MermaidDiagram id="arch-overview" chart={specs.high_level_architecture.mermaid_diagram} />
+            <MermaidDiagram
+              id="arch-overview"
+              chart={specs.high_level_architecture.mermaid_diagram}
+              variant="wide"
+            />
           )}
         </SpecSection>
       )}
 
       {specs.erd && (
         <SpecSection title="Entity Relationship Diagram (ERD)" icon={Database}>
-          <p className="text-sm">{specs.erd.description}</p>
+          <p className="text-sm">{formatSpecScalar(specs.erd.description)}</p>
           {(specs.erd.entities || []).length > 0 && (
             <div className="space-y-3">
-              {specs.erd.entities.map((entity, i) => (
+              {specs.erd.entities.map((entity, i) => {
+                const typeLabel =
+                  typeof entity.type === "string" ? entity.type : formatSpecScalar(entity.type);
+                const isCustom = String(typeLabel).toLowerCase() === "custom";
+                return (
                 <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-semibold text-sm">{entity.name}</h4>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${entity.type === "custom" ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400"}`}>
-                      {entity.type}
+                    <h4 className="font-semibold text-sm">{formatSpecScalar(entity.name)}</h4>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${isCustom ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400"}`}>
+                      {typeLabel}
                     </span>
                   </div>
                   {(entity.fields || []).length > 0 && (
@@ -1123,9 +1325,9 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                         <tbody>
                           {entity.fields.map((f, j) => (
                             <tr key={j} className="border-b border-border/10">
-                              <td className="py-1.5 px-2 font-mono">{f.name}</td>
-                              <td className="py-1.5 px-2 text-muted-foreground">{f.type}</td>
-                              <td className="py-1.5 px-2 text-muted-foreground">{f.description}</td>
+                              <td className="py-1.5 px-2 font-mono">{formatSpecScalar(f.name)}</td>
+                              <td className="py-1.5 px-2 text-muted-foreground">{formatSpecScalar(f.type)}</td>
+                              <td className="py-1.5 px-2 text-muted-foreground">{formatSpecScalar(f.description)}</td>
                               <td className="py-1.5 px-2 text-center">{f.is_key ? <KeyRound className="w-3 h-3 text-amber-400 inline" /> : ""}</td>
                               <td className="py-1.5 px-2 text-center">{f.is_required ? <CheckCircle2 className="w-3 h-3 text-green-400 inline" /> : ""}</td>
                             </tr>
@@ -1141,18 +1343,19 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                         {entity.relationships.map((r, j) => (
                           <li key={j} className="text-xs text-muted-foreground flex items-start gap-1.5">
                             <Link2 className="w-3 h-3 mt-0.5 shrink-0" />
-                            {r}
+                            {formatSpecScalar(r)}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {specs.erd.mermaid_diagram && (
-            <MermaidDiagram id="erd-diagram" chart={specs.erd.mermaid_diagram} />
+            <MermaidDiagram id="erd-diagram" chart={specs.erd.mermaid_diagram} variant="wide" />
           )}
         </SpecSection>
       )}
@@ -1166,14 +1369,14 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.standard_and_custom_entities.standard_entities.map((e, i) => (
                   <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm">{e.name}</span>
+                      <span className="font-semibold text-sm">{formatSpecScalar(e.name)}</span>
                       <span className="px-1.5 py-0.5 rounded text-xs bg-blue-500/10 text-blue-400">standard</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{e.purpose}</p>
+                    <p className="text-xs text-muted-foreground">{formatSpecScalar(e.purpose)}</p>
                     {(e.customizations || []).length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {e.customizations.map((c, j) => (
-                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{c}</span>
+                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{formatSpecScalar(c)}</span>
                         ))}
                       </div>
                     )}
@@ -1189,11 +1392,11 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.standard_and_custom_entities.custom_entities.map((e, i) => (
                   <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm">{e.name}</span>
+                      <span className="font-semibold text-sm">{formatSpecScalar(e.name)}</span>
                       <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">custom</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{e.purpose}</p>
-                    {e.fields_summary && <p className="text-xs text-muted-foreground mt-1 italic">{e.fields_summary}</p>}
+                    <p className="text-xs text-muted-foreground">{formatSpecScalar(e.purpose)}</p>
+                    {e.fields_summary && <p className="text-xs text-muted-foreground mt-1 italic">{formatSpecScalar(e.fields_summary)}</p>}
                   </div>
                 ))}
               </div>
@@ -1208,17 +1411,17 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
             <div className="space-y-3">
               {specs.business_rules.workflows.map((wf, i) => (
                 <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
-                  <h4 className="font-semibold text-sm mb-1">{wf.name}</h4>
+                  <h4 className="font-semibold text-sm mb-1">{formatSpecScalar(wf.name)}</h4>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">Trigger: {wf.trigger}</span>
+                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">Trigger: {formatSpecScalar(wf.trigger)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-2">{wf.description}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{formatSpecScalar(wf.description)}</p>
                   {(wf.steps || []).length > 0 && (
                     <ol className="space-y-1">
                       {wf.steps.map((s, j) => (
                         <li key={j} className="flex items-start gap-2 text-xs">
                           <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-medium">{j + 1}</span>
-                          <span className="mt-0.5">{s}</span>
+                          <span className="mt-0.5">{formatSpecScalar(s)}</span>
                         </li>
                       ))}
                     </ol>
@@ -1234,7 +1437,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.business_rules.validation_rules.map((r, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
-                    <span>{r}</span>
+                    <span>{formatSpecScalar(r)}</span>
                   </li>
                 ))}
               </ul>
@@ -1247,7 +1450,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.business_rules.automation.map((a, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <Workflow className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
-                    <span>{a}</span>
+                    <span>{formatSpecScalar(a)}</span>
                   </li>
                 ))}
               </ul>
@@ -1263,14 +1466,14 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
               {specs.javascript_customizations.client_scripts.map((s, i) => (
                 <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-sm">{s.name}</span>
+                    <span className="font-semibold text-sm">{formatSpecScalar(s.name)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-1">{s.purpose}</p>
-                  <p className="text-xs font-mono text-muted-foreground">{s.file_path}</p>
+                  <p className="text-xs text-muted-foreground mb-1">{formatSpecScalar(s.purpose)}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{formatSpecScalar(s.file_path)}</p>
                   {(s.events_handled || []).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {s.events_handled.map((e, j) => (
-                        <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{e}</span>
+                        <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{formatSpecScalar(e)}</span>
                       ))}
                     </div>
                   )}
@@ -1283,7 +1486,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Web Resources</h4>
               <div className="flex flex-wrap gap-1.5">
                 {specs.javascript_customizations.web_resources.map((r, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{r}</span>
+                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">{formatSpecScalar(r)}</span>
                 ))}
               </div>
             </div>
@@ -1293,7 +1496,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Libraries Used</h4>
               <div className="flex flex-wrap gap-1.5">
                 {specs.javascript_customizations.libraries_used.map((l, i) => (
-                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20">{l}</span>
+                  <span key={i} className="px-2.5 py-1 rounded-lg text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20">{formatSpecScalar(l)}</span>
                 ))}
               </div>
             </div>
@@ -1306,11 +1509,11 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="bg-card/60 rounded-lg p-3 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">Authentication Method</p>
-              <p className="text-sm font-medium">{specs.auth_model.authentication_method}</p>
+              <p className="text-sm font-medium">{formatSpecScalar(specs.auth_model.authentication_method)}</p>
             </div>
             <div className="bg-card/60 rounded-lg p-3 border border-border/30">
               <p className="text-xs text-muted-foreground mb-1">Authorization Model</p>
-              <p className="text-sm font-medium">{specs.auth_model.authorization_model}</p>
+              <p className="text-sm font-medium">{formatSpecScalar(specs.auth_model.authorization_model)}</p>
             </div>
           </div>
           {(specs.auth_model.roles || []).length > 0 && (
@@ -1319,11 +1522,11 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
               <div className="space-y-2">
                 {specs.auth_model.roles.map((role, i) => (
                   <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30">
-                    <span className="font-semibold text-sm">{role.name}</span>
+                    <span className="font-semibold text-sm">{formatSpecScalar(role.name)}</span>
                     {(role.permissions || []).length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {role.permissions.map((p, j) => (
-                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{p}</span>
+                          <span key={j} className="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400">{formatSpecScalar(p)}</span>
                         ))}
                       </div>
                     )}
@@ -1339,7 +1542,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                 {specs.auth_model.security_features.map((f, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <ShieldCheck className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                    <span>{f}</span>
+                    <span>{formatSpecScalar(f)}</span>
                   </li>
                 ))}
               </ul>
@@ -1350,7 +1553,7 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Related Files</h4>
               <div className="flex flex-wrap gap-1.5">
                 {specs.auth_model.file_paths.map((p, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{p}</span>
+                  <span key={i} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{formatSpecScalar(p)}</span>
                 ))}
               </div>
             </div>
@@ -1371,17 +1574,17 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                     <div key={i} className="bg-card/60 rounded-lg p-3 border border-border/30 flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-sm">{c.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary">{c.type}</span>
+                          <span className="font-semibold text-sm">{formatSpecScalar(c.name)}</span>
+                          <span className="px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary">{formatSpecScalar(c.type)}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground">{c.description}</p>
-                        <p className="text-xs font-mono text-muted-foreground mt-0.5">{c.file_path}</p>
+                        <p className="text-xs text-muted-foreground">{formatSpecScalar(c.description)}</p>
+                        <p className="text-xs font-mono text-muted-foreground mt-0.5">{formatSpecScalar(c.file_path)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
                 {modData.mermaid_diagram && (
-                  <MermaidDiagram id={`module-${mod}`} chart={modData.mermaid_diagram} />
+                  <MermaidDiagram id={`module-${mod}`} chart={modData.mermaid_diagram} variant="wide" />
                 )}
               </div>
             );
@@ -1391,30 +1594,32 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
 
       {specs.integration_architecture && (
         <SpecSection title="Technical Integration Architecture" icon={Plug}>
-          <p className="text-sm">{specs.integration_architecture.description}</p>
+          <p className="text-sm">{formatSpecScalar(specs.integration_architecture.description)}</p>
           {(specs.integration_architecture.integrations || []).length > 0 && (
             <div className="space-y-3">
-              {specs.integration_architecture.integrations.map((intg, i) => (
+              {specs.integration_architecture.integrations.map((intg, i) => {
+                const dirRaw = formatSpecScalar(intg.direction).toLowerCase();
+                return (
                 <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-semibold text-sm">{intg.name}</h4>
-                    <span className="px-1.5 py-0.5 rounded text-xs bg-violet-500/10 text-violet-400">{intg.type}</span>
+                    <h4 className="font-semibold text-sm">{formatSpecScalar(intg.name)}</h4>
+                    <span className="px-1.5 py-0.5 rounded text-xs bg-violet-500/10 text-violet-400">{formatSpecScalar(intg.type)}</span>
                     <span className={`px-1.5 py-0.5 rounded text-xs ${
-                      intg.direction === "bidirectional" ? "bg-amber-500/10 text-amber-400" :
-                      intg.direction === "inbound" ? "bg-green-500/10 text-green-400" :
+                      dirRaw === "bidirectional" ? "bg-amber-500/10 text-amber-400" :
+                      dirRaw === "inbound" ? "bg-green-500/10 text-green-400" :
                       "bg-blue-500/10 text-blue-400"
-                    }`}>{intg.direction}</span>
+                    }`}>{formatSpecScalar(intg.direction)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    <span className="font-medium">External System:</span> {intg.external_system}
+                    <span className="font-medium">External System:</span> {formatSpecScalar(intg.external_system)}
                   </p>
-                  <p className="text-xs text-muted-foreground mb-2">{intg.description}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{formatSpecScalar(intg.description)}</p>
                   {(intg.endpoints || []).length > 0 && (
                     <div className="mb-1">
                       <span className="text-xs text-muted-foreground font-medium">Endpoints:</span>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {intg.endpoints.map((ep, j) => (
-                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{ep}</span>
+                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{formatSpecScalar(ep)}</span>
                         ))}
                       </div>
                     </div>
@@ -1424,17 +1629,22 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
                       <span className="text-xs text-muted-foreground font-medium">Files:</span>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {intg.file_paths.map((fp, j) => (
-                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{fp}</span>
+                          <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{formatSpecScalar(fp)}</span>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {specs.integration_architecture.mermaid_diagram && (
-            <MermaidDiagram id="integration-arch" chart={specs.integration_architecture.mermaid_diagram} />
+            <MermaidDiagram
+              id="integration-arch"
+              chart={specs.integration_architecture.mermaid_diagram}
+              variant="wide"
+            />
           )}
         </SpecSection>
       )}
@@ -1445,19 +1655,19 @@ function TechnicalSpecsTab({ data }: { data: AdvancedDocResult }) {
             {specs.integration_auth.mechanisms.map((mech, i) => (
               <div key={i} className="bg-card/60 rounded-lg p-4 border border-border/30">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="font-semibold text-sm">{mech.integration_name}</h4>
-                  <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{mech.auth_type}</span>
+                  <h4 className="font-semibold text-sm">{formatSpecScalar(mech.integration_name)}</h4>
+                  <span className="px-1.5 py-0.5 rounded text-xs bg-amber-500/10 text-amber-400">{formatSpecScalar(mech.auth_type)}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mb-1">{mech.description}</p>
+                <p className="text-xs text-muted-foreground mb-1">{formatSpecScalar(mech.description)}</p>
                 {mech.token_management && (
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">Token Management:</span> {mech.token_management}
+                    <span className="font-medium">Token Management:</span> {formatSpecScalar(mech.token_management)}
                   </p>
                 )}
                 {(mech.file_paths || []).length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {mech.file_paths.map((fp, j) => (
-                      <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{fp}</span>
+                      <span key={j} className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">{formatSpecScalar(fp)}</span>
                     ))}
                   </div>
                 )}
@@ -1673,7 +1883,7 @@ function ProgressStepper({ steps }: { steps: StreamStep[] }) {
                   <span className="text-xs text-primary animate-pulse">processing...</span>
                 )}
               </div>
-              {s.summary && s.status === "complete" && (
+              {s.summary && (s.status === "complete" || s.status === "running") && (
                 <p className="text-xs text-muted-foreground -mt-1">{s.summary}</p>
               )}
               {s.error && (s.status === "error" || s.status === "skipped") && (
@@ -1821,7 +2031,9 @@ export default function AdvancedDocs() {
           </h2>
           <p className="text-sm text-muted-foreground">
             Claude Code CLI is exploring your codebase — {completedCount}/
-            {stream.steps.length} steps complete
+            {stream.steps.length} steps complete. Very large ZIPs may sit on the
+            first step for a long time while the server unpacks and scans files;
+            the first step shows live counts when available.
           </p>
         </div>
 
@@ -2014,7 +2226,7 @@ export default function AdvancedDocs() {
           {activeTab === "connections" && <ConnectionsTab data={displayDoc} />}
           {activeTab === "flows" && <FlowsTab data={displayDoc} />}
           {activeTab === "technical-specs" && (
-            <TechnicalSpecsTab data={displayDoc} />
+            <TechnicalSpecsTab data={displayDoc} docId={selectedId ?? displayDoc.id} />
           )}
           {activeTab === "documentation" && (
             <DocumentationTab data={displayDoc} />

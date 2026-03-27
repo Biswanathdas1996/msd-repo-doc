@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from backend.models.schemas import (
@@ -11,6 +12,7 @@ from backend.services.chunking_engine import (
 from backend.services.knowledge_graph import VALID_RELATIONSHIP_TYPES
 from datetime import datetime, timezone
 
+logger = logging.getLogger("ai_reasoning")
 
 PWC_MODEL = os.environ.get("PWC_GENAI_MODEL", "vertex_ai.gemini-2.5-pro")
 
@@ -32,7 +34,12 @@ def _get_pwc_config():
     }
 
 
-def _call_pwc_genai(messages: list[dict], max_tokens: int = 8192) -> str:
+def _call_pwc_genai(
+    messages: list[dict],
+    max_tokens: int = 8192,
+    temperature: float = 0.3,
+    timeout: float = 180,
+) -> str:
     config = _get_pwc_config()
 
     headers = {
@@ -47,16 +54,32 @@ def _call_pwc_genai(messages: list[dict], max_tokens: int = 8192) -> str:
         "model": PWC_MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": 0.3,
+        "temperature": temperature,
     }
 
     response = requests.post(
         config["endpoint"],
         headers=headers,
         json=payload,
-        timeout=180,
+        timeout=timeout,
     )
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as e:
+        body = ""
+        try:
+            body = (e.response.text or "")[:8000] if e.response is not None else ""
+        except Exception:
+            pass
+        logger.error(
+            "PWC GenAI HTTP %s: %s",
+            e.response.status_code if e.response is not None else "?",
+            body or "(no body)",
+        )
+        raise RuntimeError(
+            f"PWC GenAI HTTP {e.response.status_code if e.response is not None else 'error'}: "
+            f"{body[:1200] if body else str(e)}"
+        ) from e
 
     result = response.json()
 
@@ -77,6 +100,256 @@ def _call_pwc_genai(messages: list[dict], max_tokens: int = 8192) -> str:
         return result["output"]
 
     return json.dumps(result)
+
+
+def is_pwc_genai_configured() -> bool:
+    """True when PWC GenAI env has an endpoint URL (auth may still fail if keys are wrong)."""
+    return bool(os.environ.get("PWC_GENAI_ENDPOINT_URL", "").strip())
+
+
+_TECH_SPECS_SYSTEM = """You are a principal solutions architect. You receive structured artifacts from an automated codebase analysis (knowledge graph, features, diagrams, file index, optional doc draft).
+
+MANDATORY RULES:
+1) Ground every statement in the ARTIFACTS section. Do not invent features, files, APIs, entities, or integrations that are not clearly supported by those artifacts.
+2) Preserve coverage: map knowledge_graph nodes/edges and features into the appropriate sections; cite file_path values from artifacts when listing components. Do not silently drop named items—if unsure where they fit, place them in the closest section or list under key_capabilities / layers.
+3) Where artifacts are silent, use null, empty arrays [], or the exact string "Not evidenced in provided artifacts" for required string fields—never fabricate detail.
+4) You are summarizing evidence from the artifacts, not executing tools or reading the repo.
+5) Return ONE JSON object only: no markdown code fences, no commentary—the first character must be { and the last must be }.
+
+Reuse or adapt Mermaid text from FLOW_DIAGRAMS when it fits; otherwise you may synthesize simple Mermaid (graph TD / erDiagram) using only names that appear in the artifacts.
+"""
+
+
+def _bundle_section(name: str, data, max_chars: int) -> tuple[str, int]:
+    if max_chars <= 0:
+        return "", 0
+    header = f"### {name}\n"
+    if data is None:
+        body = "null\n"
+        return header + body, len(header) + len(body)
+    if isinstance(data, str):
+        body = data if len(data) <= max_chars else data[: max_chars - 80] + "\n…(truncated)…\n"
+    else:
+        try:
+            raw = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+        except TypeError:
+            raw = str(data)
+        if len(raw) > max_chars:
+            body = raw[: max_chars - 80] + f"\n…(truncated, was {len(raw)} chars)…\n"
+        else:
+            body = raw + "\n"
+    block = header + body
+    return block, len(block)
+
+
+def _build_tech_specs_artifacts_markdown(bundle: dict, total_cap: int = 72_000) -> str:
+    # Budgets are per-section ceilings; total_cap keeps the whole request under typical gateway limits.
+    order = [
+        ("KNOWLEDGE_GRAPH", "knowledge_graph", 26_000),
+        ("FEATURES", "features", 20_000),
+        ("PROJECT_TREE", "project_tree", 14_000),
+        ("FEATURE_CONNECTIONS", "feature_connections", 12_000),
+        ("FLOW_DIAGRAMS", "flow_diagrams", 14_000),
+        ("CROSS_VALIDATION", "cross_validation", 8_000),
+        ("GENERATED_MARKDOWN_DOCS", "documentation", 12_000),
+        ("CODE_SNIPPET_SEED", "context_seed", 12_000),
+        ("FILE_INDEX", "files", 10_000),
+    ]
+    parts: list[str] = []
+    used = 0
+    for label, key, budget in order:
+        remain = total_cap - used
+        if remain <= 200:
+            break
+        chunk, clen = _bundle_section(label, bundle.get(key), min(budget, remain))
+        if clen:
+            parts.append(chunk)
+            used += clen
+    return "## ARTIFACTS\n\n" + "\n".join(parts)
+
+
+_TECH_SPECS_JSON_SHAPE = r"""
+The JSON object MUST follow this shape (all top-level keys required; use [] or null where nothing is evidenced):
+{
+  "scope_definition": { "in_scope": [], "out_of_scope": [], "summary": "" },
+  "solution_overview": { "summary": "", "tech_stack": [], "deployment_model": "", "key_capabilities": [] },
+  "high_level_architecture": {
+    "description": "",
+    "layers": [ { "name": "", "description": "", "components": [] } ],
+    "mermaid_diagram": ""
+  },
+  "erd": {
+    "description": "",
+    "entities": [ {
+      "name": "", "type": "standard|custom",
+      "fields": [ { "name": "", "type": "", "description": "", "is_key": false, "is_required": false } ],
+      "relationships": []
+    } ],
+    "mermaid_diagram": ""
+  },
+  "standard_and_custom_entities": {
+    "standard_entities": [ { "name": "", "purpose": "", "customizations": [] } ],
+    "custom_entities": [ { "name": "", "purpose": "", "fields_summary": "" } ]
+  },
+  "business_rules": {
+    "workflows": [ { "name": "", "trigger": "", "description": "", "steps": [] } ],
+    "validation_rules": [],
+    "automation": []
+  },
+  "javascript_customizations": {
+    "client_scripts": [ { "name": "", "file_path": "", "purpose": "", "events_handled": [] } ],
+    "web_resources": [],
+    "libraries_used": []
+  },
+  "auth_model": {
+    "authentication_method": "",
+    "authorization_model": "",
+    "roles": [ { "name": "", "permissions": [] } ],
+    "security_features": [],
+    "file_paths": []
+  },
+  "module_components": {
+    "sales": { "components": [ { "name": "", "type": "", "description": "", "file_path": "" } ], "mermaid_diagram": "" },
+    "service": { "components": [ { "name": "", "type": "", "description": "", "file_path": "" } ], "mermaid_diagram": "" },
+    "marketing": { "components": [ { "name": "", "type": "", "description": "", "file_path": "" } ], "mermaid_diagram": "" }
+  },
+  "integration_architecture": {
+    "description": "",
+    "integrations": [ {
+      "name": "", "type": "", "direction": "",
+      "external_system": "", "description": "",
+      "endpoints": [], "file_paths": []
+    } ],
+    "mermaid_diagram": ""
+  },
+  "integration_auth": {
+    "mechanisms": [ {
+      "integration_name": "", "auth_type": "", "description": "",
+      "token_management": "", "file_paths": []
+    } ]
+  }
+}
+"""
+
+
+def _tech_specs_pwc_artifact_cap() -> int:
+    try:
+        return max(24_000, min(int(os.environ.get("PWC_TECH_SPECS_MAX_INPUT_CHARS", "72000")), 200_000))
+    except ValueError:
+        return 72_000
+
+
+def _tech_specs_pwc_output_tokens() -> int:
+    """PWC gateways often reject very large max_tokens (e.g. 65536). Default 8192."""
+    try:
+        return max(1024, min(int(os.environ.get("PWC_TECH_SPECS_MAX_OUTPUT_TOKENS", "8192")), 32_768))
+    except ValueError:
+        return 8192
+
+
+def generate_technical_specs_from_advanced_artifacts(bundle: dict) -> dict:
+    """Synthesize technical-specs JSON from Advanced Docs artifacts via PWC GenAI (no repo tools).
+
+    ``bundle`` may include: project_name, project_tree, knowledge_graph, features,
+    feature_connections, flow_diagrams, cross_validation, documentation, context_seed, files.
+    """
+    if not is_pwc_genai_configured():
+        raise RuntimeError("PWC GenAI is not configured (set PWC_GENAI_ENDPOINT_URL)")
+
+    from backend.services.claude_analyzer import (  # noqa: PLC0415
+        _parse_json_response,
+    )
+
+    artifact_cap = _tech_specs_pwc_artifact_cap()
+    max_out = _tech_specs_pwc_output_tokens()
+
+    def _one_call(
+        cap: int,
+        out_tokens: int,
+        *,
+        single_user_message: bool,
+    ) -> str:
+        artifacts_md = _build_tech_specs_artifacts_markdown(bundle, total_cap=cap)
+        pname = bundle.get("project_name") or "Project"
+        user_prompt = f"""Project name: {pname}
+
+{artifacts_md}
+
+## REQUIRED OUTPUT
+
+{_TECH_SPECS_JSON_SHAPE}
+
+Respond with ONLY the JSON object."""
+        if single_user_message:
+            messages = [
+                {
+                    "role": "user",
+                    "content": _TECH_SPECS_SYSTEM + "\n\n---\n\n" + user_prompt,
+                }
+            ]
+        else:
+            messages = [
+                {"role": "system", "content": _TECH_SPECS_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ]
+        prompt_chars = sum(len(m["content"]) for m in messages)
+        logger.info(
+            "Technical specs (PWC): prompt ~%d chars (artifacts cap=%d), max_tokens=%d, model=%s, single_user=%s",
+            prompt_chars,
+            cap,
+            out_tokens,
+            PWC_MODEL,
+            single_user_message,
+        )
+        return _call_pwc_genai(
+            messages,
+            max_tokens=out_tokens,
+            temperature=0.12,
+            timeout=600,
+        )
+
+    try:
+        raw = _one_call(artifact_cap, max_out, single_user_message=False)
+    except RuntimeError as first_err:
+        cause = first_err.__cause__
+        is_400 = isinstance(cause, requests.HTTPError) and getattr(
+            cause.response, "status_code", None
+        ) == 400
+        if not is_400 and "HTTP 400" not in str(first_err):
+            raise
+        logger.warning(
+            "Technical specs (PWC): retrying after 400 with reduced input and single user message"
+        )
+        smaller_cap = max(28_000, artifact_cap // 2)
+        smaller_out = max(2048, min(max_out, 8192))
+        raw = _one_call(smaller_cap, smaller_out, single_user_message=True)
+
+    try:
+        return _parse_json_response(
+            raw,
+            expected_keys=(
+                ("scope_definition", "solution_overview", "high_level_architecture"),
+                ("scope_definition", "solution_overview"),
+            ),
+        )
+    except ValueError:
+        repair_out = min(max_out, 8192)
+        repair = _call_pwc_genai(
+            [
+                {"role": "user", "content": "Return only valid JSON. No markdown code fences.\n\n"
+                    "Fix into a single JSON object (technical spec schema). Preserve facts.\n\n" + raw[:28000]},
+            ],
+            max_tokens=repair_out,
+            temperature=0,
+            timeout=420,
+        )
+        return _parse_json_response(
+            repair,
+            expected_keys=(
+                ("scope_definition", "solution_overview", "high_level_architecture"),
+                ("scope_definition", "solution_overview"),
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------

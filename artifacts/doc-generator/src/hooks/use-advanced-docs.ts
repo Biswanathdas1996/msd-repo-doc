@@ -186,6 +186,11 @@ export interface AdvancedDocResult {
   completed_steps?: string[];
   current_step?: string;
   step_errors?: Record<string, string>;
+  output_folder?: string;
+  section_jobs?: {
+    technical_specs?: "running";
+    technical_specs_started_at?: string;
+  };
 }
 
 // ─── SSE streaming types ────────────────────────────────────────────────────
@@ -221,7 +226,10 @@ const STEP_DEFAULTS: StreamStep[] = [
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, {
+    cache: "no-store",
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || res.statusText);
@@ -245,7 +253,9 @@ export function useAdvancedDoc(id: string | null) {
     queryFn: () => fetchJson(`${API_BASE}/advanced-docs/${id}`),
     enabled: !!id,
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
+      const d = query.state.data;
+      if (d?.section_jobs?.technical_specs === "running") return 2500;
+      const status = d?.status;
       if (status === "ready" || status === "error" || status === "partial")
         return false;
       return 3000;
@@ -349,6 +359,38 @@ export function useAdvancedDocUpload() {
 
 // ─── Delete mutation ────────────────────────────────────────────────────────
 
+export function useRegenerateAdvancedTechnicalSpecs(docId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!docId) throw new Error("No project selected");
+      const res = await fetch(
+        `${API_BASE}/advanced-docs/${docId}/regenerate/technical-specs`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        let msg = res.statusText;
+        try {
+          const body = (await res.json()) as { detail?: string | { msg?: string }[] };
+          if (typeof body.detail === "string") msg = body.detail;
+          else if (Array.isArray(body.detail))
+            msg = body.detail.map((x) => (typeof x === "object" && x && "msg" in x ? String((x as { msg: string }).msg) : String(x))).join("; ");
+        } catch {
+          /* use statusText */
+        }
+        throw new Error(msg);
+      }
+      return res.json() as Promise<{ accepted: boolean; section: string }>;
+    },
+    onSuccess: () => {
+      if (docId) {
+        qc.invalidateQueries({ queryKey: ["advanced-docs", docId] });
+        qc.invalidateQueries({ queryKey: ["advanced-docs"] });
+      }
+    },
+  });
+}
+
 export function useDeleteAdvancedDoc() {
   const qc = useQueryClient();
   return useMutation({
@@ -450,6 +492,32 @@ export function useAdvancedDocStream(id: string | null) {
         updateStep(d.step, {
           status: "running",
           label: d.label || undefined,
+        });
+      });
+
+      es.addEventListener("extraction_progress", (e) => {
+        const d = JSON.parse((e as MessageEvent).data) as {
+          phase?: string;
+          current?: number;
+          total?: number;
+          percent?: number;
+          files_scanned?: number;
+        };
+        if (d.phase === "index") {
+          const n = d.files_scanned ?? 0;
+          updateStep("extraction", {
+            summary:
+              n > 0
+                ? `Indexing… ${n.toLocaleString()} paths scanned`
+                : "Indexing extracted files…",
+          });
+          return;
+        }
+        const cur = d.current ?? 0;
+        const tot = Math.max(d.total ?? 1, 1);
+        const pct = d.percent ?? Math.round((100 * cur) / tot);
+        updateStep("extraction", {
+          summary: `Unpacking archive… ${pct}% (${cur.toLocaleString()} / ${tot.toLocaleString()} entries)`,
         });
       });
 

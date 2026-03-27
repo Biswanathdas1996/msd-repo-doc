@@ -107,15 +107,21 @@
     font-family: 'Inter', system-ui, sans-serif !important;
   }
 
+  /* Dark node surfaces — Mermaid often inlines light fills (#ccf, etc.) that vanish on our card backgrounds */
   .mermaid-container .node rect,
   .mermaid-container .node circle,
   .mermaid-container .node ellipse,
-  .mermaid-container .node polygon {
+  .mermaid-container .node polygon,
+  .mermaid-container rect.basic.label-container,
+  .mermaid-container rect.label-container {
+    fill: hsl(var(--card)) !important;
+    stroke: hsl(var(--border)) !important;
     rx: 12px !important;
     ry: 12px !important;
     stroke-width: 1.5px !important;
     filter: drop-shadow(0 4px 20px rgba(59, 130, 246, 0.12)) !important;
   }
+
   .mermaid-container .node .label,
   .mermaid-container .node .label div,
   .mermaid-container .node .label span,
@@ -128,7 +134,16 @@
     color: #f1f5f9 !important;
   }
 
+  /* Flowchart HTML labels often keep dark inline color after we darken node fills */
+  .mermaid-container svg foreignObject div,
+  .mermaid-container svg foreignObject span,
+  .mermaid-container svg foreignObject p {
+    color: #f1f5f9 !important;
+  }
+
   .mermaid-container .cluster rect {
+    fill: hsl(var(--muted) / 0.4) !important;
+    stroke: hsl(var(--border)) !important;
     rx: 16px !important;
     ry: 16px !important;
     stroke-width: 1.5px !important;

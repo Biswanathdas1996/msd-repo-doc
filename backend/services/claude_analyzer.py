@@ -16,19 +16,41 @@ import os
 import re
 import sys
 import json
+import time
 import uuid
 import math
 import shutil
 import zipfile
 import logging
 import subprocess
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
+from backend.services.ai_reasoning import (
+    generate_technical_specs_from_advanced_artifacts,
+    is_pwc_genai_configured,
+)
+
 logger = logging.getLogger("claude_analyzer")
 
 _SHELL = sys.platform == "win32"
+
+
+def _technical_specs_via_pwc() -> bool:
+    """Use PWC GenAI + bundled artifacts when provider is pwc or auto (endpoint configured)."""
+    mode = (os.environ.get("ADVANCED_TECH_SPECS_PROVIDER") or "auto").strip().lower()
+    if mode == "claude":
+        return False
+    if mode == "pwc":
+        if not is_pwc_genai_configured():
+            raise RuntimeError(
+                "ADVANCED_TECH_SPECS_PROVIDER=pwc but PWC_GENAI_ENDPOINT_URL is not set"
+            )
+        return True
+    return is_pwc_genai_configured()
+
 
 # ---------------------------------------------------------------------------
 # File collection config
@@ -39,6 +61,7 @@ SKIP_DIRS = {
     "node_modules", "__pycache__", ".vs", "bin", "obj",
     ".terraform", ".tox", ".next", ".nuxt", "dist", "build",
     "coverage", ".cache", ".parcel-cache", "vendor",
+    "packages",  # NuGet restore — deep paths often exceed Windows MAX_PATH; not needed for architecture docs
 }
 
 SKIP_EXTENSIONS = {
@@ -117,6 +140,18 @@ _SCALE_CONFIG = {
 # ZIP extraction + cleaning
 # ---------------------------------------------------------------------------
 
+def _win_long_path(path: str) -> str:
+    """Use Windows ``\\\\?\\`` extended path so open/create works past MAX_PATH (~260)."""
+    if not _SHELL:
+        return path
+    path = os.path.normpath(os.path.abspath(path))
+    if path.startswith("\\\\?\\"):
+        return path
+    if path.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + path[2:]
+    return "\\\\?\\" + path
+
+
 def _should_skip_entry(entry_name: str) -> bool:
     """Return True if a ZIP entry should be skipped (junk dir/file)."""
     parts = entry_name.replace("\\", "/").lower().split("/")
@@ -132,33 +167,81 @@ def _should_skip_entry(entry_name: str) -> bool:
     return False
 
 
-def extract_and_clean(zip_path: str, output_base: str) -> dict:
+def extract_and_clean(
+    zip_path: str,
+    output_base: str,
+    on_event: Callable[[str, dict], None] | None = None,
+) -> dict:
     """Extract ZIP and remove unnecessary files. Returns extraction info."""
     project_id = str(uuid.uuid4())[:8]
-    output_folder = os.path.join(output_base, f"adv_{project_id}")
-    os.makedirs(output_folder, exist_ok=True)
+    output_folder_abs = os.path.abspath(os.path.join(output_base, f"adv_{project_id}"))
+    os.makedirs(output_folder_abs, exist_ok=True)
+    # Long path for I/O on Windows; zip-slip checks use the normal absolute path.
+    output_folder = _win_long_path(output_folder_abs) if _SHELL else output_folder_abs
 
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             entries = zf.infolist()
-            resolved = os.path.realpath(output_folder)
+            resolved = os.path.realpath(output_folder_abs)
 
             to_extract = []
             for entry in entries:
-                target = os.path.realpath(os.path.join(output_folder, entry.filename))
+                target = os.path.realpath(os.path.join(output_folder_abs, entry.filename))
                 if not target.startswith(resolved + os.sep) and target != resolved:
                     raise ValueError("Zip Slip detected")
                 if not _should_skip_entry(entry.filename):
                     to_extract.append(entry)
 
+            n = len(to_extract)
             logger.info("ZIP has %d total entries, extracting %d useful entries",
-                        len(entries), len(to_extract))
-            zf.extractall(output_folder, members=to_extract)
+                        len(entries), n)
+
+            def _emit_zip_progress(i_done: int) -> None:
+                if not on_event:
+                    return
+                on_event(
+                    "extraction_progress",
+                    {
+                        "phase": "zip",
+                        "current": i_done,
+                        "total": n,
+                        "percent": round(100 * i_done / n) if n else 100,
+                    },
+                )
+
+            if n == 0:
+                _emit_zip_progress(0)
+            else:
+                last_prog = time.monotonic()
+                for i, member in enumerate(to_extract):
+                    zf.extract(member, output_folder)
+                    now = time.monotonic()
+                    if (
+                        i == n - 1
+                        or i % 2000 == 0
+                        or (now - last_prog) >= 2.0
+                    ):
+                        _emit_zip_progress(i + 1)
+                        last_prog = now
     except zipfile.BadZipFile:
-        shutil.rmtree(output_folder, ignore_errors=True)
+        shutil.rmtree(output_folder_abs, ignore_errors=True)
         raise ValueError("Invalid ZIP file")
     except ValueError:
-        shutil.rmtree(output_folder, ignore_errors=True)
+        shutil.rmtree(output_folder_abs, ignore_errors=True)
+        raise
+    except OSError as e:
+        shutil.rmtree(output_folder_abs, ignore_errors=True)
+        if _SHELL and getattr(e, "winerror", None) == 206:  # ERROR_FILENAME_EXCED_RANGE
+            raise ValueError(
+                "Path too long for Windows even with extended paths. Try a shorter project folder "
+                "(move the app closer to drive root) or zip without deep vendor/package trees."
+            ) from e
+        if e.errno == 2:
+            raise ValueError(
+                "Extract failed (path missing or Windows MAX_PATH). If the archive has very deep "
+                "folders, enable long paths in Windows or use a shorter output path; NuGet "
+                "`packages/` is skipped automatically."
+            ) from e
         raise
 
     for root_dir, dirs, files in os.walk(output_folder, topdown=False):
@@ -179,14 +262,29 @@ def extract_and_clean(zip_path: str, output_base: str) -> dict:
 # Collect code file metadata + identify entry points for context seeding
 # ---------------------------------------------------------------------------
 
-def collect_code_files(folder: str) -> list[dict]:
+def collect_code_files(
+    folder: str,
+    on_progress: Callable[[int], None] | None = None,
+    progress_every: int = 800,
+    progress_min_interval_s: float = 2.0,
+) -> list[dict]:
     """Walk the folder and collect code file metadata.
     Returns a list of {path, size, lines, is_entry_point} dicts.
     """
     file_list = []
+    seen_files = 0
+    last_emit = time.monotonic()
 
     for root_dir, _, files in os.walk(folder):
         for f in sorted(files):
+            seen_files += 1
+            if on_progress and (
+                seen_files % progress_every == 0
+                or (time.monotonic() - last_emit) >= progress_min_interval_s
+            ):
+                on_progress(seen_files)
+                last_emit = time.monotonic()
+
             _, ext = os.path.splitext(f.lower())
             full_path = os.path.join(root_dir, f)
 
@@ -270,6 +368,80 @@ def _pre_read_key_files(folder: str, code_files: list[dict], max_total_chars: in
 # Claude Code CLI invocation — secured with allowedTools
 # ---------------------------------------------------------------------------
 
+def _win_subprocess_cwd(cwd: str) -> str:
+    """Windows: use a normal path for subprocess ``cwd``.
+
+    ``\\?\\`` extended-length paths are correct for Python's own file APIs but
+    ``CreateProcess`` / child processes often mis-handle them and can raise
+    ``FileNotFoundError`` (WinError 2) that looks like a missing executable.
+    """
+    if not _SHELL or not cwd:
+        return cwd
+    norm = cwd.replace("/", "\\")
+    unc = "\\\\?\\UNC\\"
+    if norm.startswith(unc):
+        return "\\" + norm[len(unc) :]
+    dos = "\\\\?\\"
+    if norm.startswith(dos):
+        return norm[len(dos) :]
+    return cwd
+
+
+def _resolve_claude_executable() -> str:
+    """Resolve the Claude Code CLI binary.
+
+    The FastAPI process often has a different PATH than an interactive shell (no npm global
+    bin). Set ``CLAUDE_CODE_CLI`` or ``CLAUDE_CLI_PATH`` to a full path when needed.
+    """
+    for key in ("CLAUDE_CODE_CLI", "CLAUDE_CLI_PATH"):
+        raw = (os.environ.get(key) or "").strip().strip('"')
+        if not raw:
+            continue
+        expanded = os.path.abspath(os.path.expandvars(os.path.expanduser(raw)))
+        if os.path.isfile(expanded):
+            logger.info("Using %s from env %s=%s", expanded, key, raw)
+            return expanded
+        found = shutil.which(raw)
+        if found:
+            logger.info("Using %s (from env %s=%s via PATH search)", found, key, raw)
+            return found
+        raise RuntimeError(
+            f"{key} is set to {raw!r} but no such file was found and it is not on PATH."
+        )
+
+    found = shutil.which("claude")
+    if found:
+        return found
+    if _SHELL:
+        found = shutil.which("claude.cmd")
+        if found:
+            return found
+        # npm global bin is often missing from the PATH of GUI-started / IDE-started Python
+        for guess in (
+            os.path.expandvars(r"%APPDATA%\npm\claude.cmd"),
+            os.path.expandvars(r"%LOCALAPPDATA%\npm\claude.cmd"),
+        ):
+            if guess and os.path.isfile(guess):
+                logger.info("Resolved Claude CLI via npm default path: %s", guess)
+                return guess
+
+    raise RuntimeError(
+        "Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code\n"
+        "Standard solution documentation uses PWC GenAI and does not need this binary; "
+        "Advanced Docs / technical specs require Claude Code CLI.\n"
+        "If it is installed, set CLAUDE_CODE_CLI in .env to the full path, for example:\n"
+        "  CLAUDE_CODE_CLI=C:/Users/YourName/AppData/Roaming/npm/claude.cmd"
+    )
+
+
+def _claude_subprocess_argv(executable: str, cli_flags: list[str]) -> list[str]:
+    """Build argv for subprocess. On Windows, npm shims are .cmd files and need cmd.exe /c."""
+    lower = executable.lower()
+    if _SHELL and (lower.endswith(".cmd") or lower.endswith(".bat")):
+        return ["cmd.exe", "/c", executable] + cli_flags
+    return [executable] + cli_flags
+
+
 def _call_claude_cli(
     prompt: str,
     cwd: str,
@@ -293,8 +465,13 @@ def _call_claude_cli(
 
     Falls back to --dangerously-skip-permissions if --allowedTools fails.
     """
-    cmd = [
-        "claude",
+    try:
+        _resolved = _resolve_claude_executable()
+    except RuntimeError as e:
+        logger.error("CLI resolve failed: %s", e)
+        raise
+
+    cli_flags_primary = [
         "-p",
         "--output-format", "json",
         "--max-turns", str(max_turns),
@@ -302,10 +479,15 @@ def _call_claude_cli(
         "--effort", effort,
         "--allowedTools", "Read,Grep,Glob",
     ]
+    cmd = _claude_subprocess_argv(_resolved, cli_flags_primary)
 
     logger.info("=" * 60)
     logger.info("CLI CALL START")
+    run_cwd = _win_subprocess_cwd(cwd) if _SHELL else cwd
+    logger.info("  claude   = %s", _resolved)
     logger.info("  cwd      = %s", cwd)
+    if run_cwd != cwd:
+        logger.info("  cwd(sub) = %s (short path for subprocess)", run_cwd)
     logger.info("  budget   = $%.2f", max_budget_usd)
     logger.info("  timeout  = %ds", timeout_seconds)
     logger.info("  turns    = %d", max_turns)
@@ -317,14 +499,18 @@ def _call_claude_cli(
         """Run Claude CLI with the prompt piped via stdin to avoid Windows
         command-line length limits (~8191 chars)."""
         try:
+            if run_cwd and not os.path.isdir(run_cwd):
+                logger.error("CLI subprocess cwd is not a directory: %s", run_cwd)
             return subprocess.run(
                 cmd_args,
                 input=prompt_text,
                 capture_output=True,
                 text=True,
-                cwd=cwd,
+                cwd=run_cwd,
                 timeout=timeout_seconds,
-                shell=_SHELL,
+                # Always False: on Windows, shell=True with a argv list mis-invokes cmd.exe and
+                # can hang or fail to run `claude` from PATH correctly.
+                shell=False,
                 encoding="utf-8",
                 errors="replace",
             )
@@ -334,20 +520,25 @@ def _call_claude_cli(
                 f"Claude Code CLI timed out after {timeout_seconds}s. "
                 "The codebase may be too large or the analysis too complex."
             )
-        except FileNotFoundError:
-            logger.error("CLI NOT FOUND — 'claude' binary missing from PATH")
-            raise RuntimeError(
-                "Claude Code CLI ('claude') not found. "
-                "Install it with: npm install -g @anthropic-ai/claude-code"
+        except FileNotFoundError as e:
+            logger.error(
+                "CLI spawn failed (FileNotFoundError): %s | argv[0]=%r cwd=%r",
+                e,
+                cmd_args[0] if cmd_args else None,
+                run_cwd,
             )
+            raise RuntimeError(
+                "Could not start Claude Code CLI (or invalid subprocess working directory on Windows). "
+                "Set CLAUDE_CODE_CLI in .env if needed. Note: standard docs use PWC GenAI; only "
+                "Advanced Docs uses the Claude CLI."
+            ) from e
 
     proc = _run_cli(cmd, prompt)
 
     # If --allowedTools not recognized, retry with legacy flag
     if proc.returncode != 0 and proc.stderr and "allowedTools" in proc.stderr:
         logger.warning("--allowedTools not supported, falling back to --dangerously-skip-permissions")
-        cmd_fallback = [
-            "claude",
+        cli_flags_fallback = [
             "-p",
             "--output-format", "json",
             "--max-turns", str(max_turns),
@@ -355,6 +546,7 @@ def _call_claude_cli(
             "--effort", effort,
             "--dangerously-skip-permissions",
         ]
+        cmd_fallback = _claude_subprocess_argv(_resolved, cli_flags_fallback)
         proc = _run_cli(cmd_fallback, prompt)
 
     logger.info("CLI process exited with return code: %d", proc.returncode)
@@ -1009,6 +1201,84 @@ REMINDER: Your response must start with {{ and end with }}. No other text."""
         ))
 
 
+def regenerate_technical_specs(doc: dict) -> dict:
+    """Re-run technical specs using PWC (bundled JSON) or Claude Code CLI + on-disk folder."""
+    if _technical_specs_via_pwc():
+        bundle = {
+            "project_name": doc.get("name", ""),
+            "project_tree": doc.get("project_tree", ""),
+            "knowledge_graph": doc.get("knowledge_graph") or {},
+            "features": doc.get("features") or {},
+            "feature_connections": doc.get("feature_connections") or {},
+            "flow_diagrams": doc.get("flow_diagrams") or {},
+            "cross_validation": doc.get("cross_validation"),
+            "documentation": doc.get("documentation") or "",
+            "context_seed": None,
+            "files": doc.get("files") or [],
+        }
+        folder = doc.get("output_folder")
+        if folder and os.path.isdir(folder):
+            code_files = collect_code_files(folder)
+            if code_files:
+                bundle["context_seed"] = _pre_read_key_files(
+                    folder, code_files, max_total_chars=35000
+                )
+        logger.info("Regenerate technical specs via PWC GenAI (bundled artifacts)")
+        return generate_technical_specs_from_advanced_artifacts(bundle)
+
+    folder = doc.get("output_folder")
+    if not folder:
+        raise ValueError(
+            "This report has no extracted project folder (e.g. it was imported from JSON). "
+            "Re-upload the ZIP to generate technical specs with Claude CLI, or set "
+            "PWC_GENAI_ENDPOINT_URL and ADVANCED_TECH_SPECS_PROVIDER=auto|pwc."
+        )
+    if not os.path.isdir(folder):
+        raise ValueError(
+            "Extracted project folder is missing on disk. Re-upload the ZIP."
+        )
+
+    t0 = time.monotonic()
+    logger.info("regenerate_technical_specs: collecting code files from %s", folder)
+    code_files = collect_code_files(folder)
+    logger.info(
+        "regenerate_technical_specs: %d code files indexed in %.1fs",
+        len(code_files),
+        time.monotonic() - t0,
+    )
+    if not code_files:
+        raise ValueError("No code files found in the extracted folder.")
+
+    total_lines = sum(f["lines"] for f in code_files)
+    scale = _determine_scale(len(code_files), total_lines)
+    cfg = _SCALE_CONFIG[scale]
+    t1 = time.monotonic()
+    tree = generate_project_tree(folder, max_lines=cfg["tree_cap"])
+    logger.info(
+        "regenerate_technical_specs: project tree built in %.1fs (%d chars)",
+        time.monotonic() - t1,
+        len(tree),
+    )
+    context_seed = _pre_read_key_files(folder, code_files, max_total_chars=60000)
+
+    kg = doc.get("knowledge_graph") or {}
+    features = doc.get("features") or {}
+
+    logger.info(
+        "regenerate_technical_specs: calling Claude CLI (timeout=%ds, scale=%s)",
+        cfg["timeout"],
+        scale,
+    )
+    t2 = time.monotonic()
+    out = analyze_technical_specs(folder, tree, context_seed, kg, features, cfg)
+    logger.info(
+        "regenerate_technical_specs: CLI finished in %.1fs, top-level keys: %s",
+        time.monotonic() - t2,
+        list(out.keys())[:12] if isinstance(out, dict) else type(out),
+    )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Mermaid syntax validation
 # ---------------------------------------------------------------------------
@@ -1550,9 +1820,10 @@ def run_advanced_analysis(
 
     # ── Extraction ─────────────────────────────────────────────────────────
     _step_start("extraction")
-    extraction = extract_and_clean(zip_path, output_base)
+    extraction = extract_and_clean(zip_path, output_base, on_event=_emit)
     project_id = extraction["project_id"]
     folder = extraction["output_folder"]
+    _emit("extraction_progress", {"phase": "index", "files_scanned": 0})
 
     result: dict = {
         "id": project_id,
@@ -1577,7 +1848,13 @@ def run_advanced_analysis(
 
     errors: list[str] = []
 
-    code_files = collect_code_files(folder)
+    def _emit_index_progress(scanned: int) -> None:
+        _emit(
+            "extraction_progress",
+            {"phase": "index", "files_scanned": scanned},
+        )
+
+    code_files = collect_code_files(folder, on_progress=_emit_index_progress)
 
     if not code_files:
         result["status"] = "error"
@@ -1749,8 +2026,25 @@ def run_advanced_analysis(
     result["current_step"] = "technical_specs"
     _notify(result)
     try:
-        technical_specs = analyze_technical_specs(folder, tree, context_seed,
-                                                  knowledge_graph, features, cfg)
+        if _technical_specs_via_pwc():
+            bundle = {
+                "project_name": project_name,
+                "project_tree": tree,
+                "knowledge_graph": knowledge_graph or {},
+                "features": features or {},
+                "feature_connections": connections or {},
+                "flow_diagrams": diagrams or {},
+                "cross_validation": result.get("cross_validation"),
+                "documentation": "",
+                "context_seed": context_seed,
+                "files": file_list,
+            }
+            technical_specs = generate_technical_specs_from_advanced_artifacts(bundle)
+            logger.info("Technical specs step used PWC GenAI (bundled artifacts)")
+        else:
+            technical_specs = analyze_technical_specs(
+                folder, tree, context_seed, knowledge_graph, features, cfg
+            )
         result["technical_specs"] = technical_specs
         result["completed_steps"].append("technical_specs")
         sections_found = sum(1 for k, v in technical_specs.items()
